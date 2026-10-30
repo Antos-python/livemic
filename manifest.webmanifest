@@ -1,0 +1,17 @@
+{
+  "name": "Live MIC",
+  "short_name": "Live MIC",
+  "description": "Mikrofon na żywo i soundboard na głośnik Bluetooth",
+  "lang": "pl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#070a07",
+  "theme_color": "#070a07",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
