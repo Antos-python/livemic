@@ -311,7 +311,7 @@
           <div class="cd-wrap">
             <div class="cd-disp" id="cdDisp">T-10</div>
             <div class="cd-side">
-              <button class="btn dng cd-go" id="cdGo">⚠ Uruchom odliczanie <kbd class="hide-m">C</kbd></button>
+              <div class="btns"><button class="btn dng cd-go" id="cdGo" style="flex:1">⚠ Uruchom odliczanie <kbd class="hide-m">C</kbd></button><button class="btn" id="cdPrev" title="Odtwórz sam finał">▶ Finał</button></div>
               <div class="cd-opts">
                 <div class="field"><label>Czas</label><select id="cdLen"><option>5</option><option selected>10</option><option>15</option><option>30</option></select></div>
                 <div class="field"><label>Finał</label><select id="cdEnd"><option value="boom">WYBUCH</option><option value="alarm">ALARM</option><option value="scream">KRZYK</option></select></div>
@@ -1063,109 +1063,296 @@ async function rxPlay() {
 $('rxPlay').onclick = rxPlay;
 
 // ---------- ODLICZANIE ----------
-// tyknięcia coraz wyżej i szybciej, rosnąca syrena, bicie serca, na zero finał
-let cd = null;
-$('cdLen').value = store.get('cdLen', '10'); $('cdEnd').value = store.get('cdEnd', 'boom'); $('cdVol').value = store.get('cdVol', 1);
+// napięcie: tyknięcia, przyspieszające serce, ton Sheparda (nieskończenie rosnący), dron, zakłócenia, narastający „whoosh”
+// na zero jeden z finałów; wszystko przez kompresor + pogłos
+const FINALS = {
+  boom:    { n: 'WYBUCH', len: 4.5 },
+  nuke:    { n: 'WYBUCH ATOMOWY', len: 9 },
+  jump:    { n: 'JUMPSCARE', len: 3.5 },
+  fake:    { n: 'FAŁSZYWE ZERO', len: 6, delay: 2.2 },
+  scream:  { n: 'KRZYK', len: 3 },
+  braam:   { n: 'BRAAM', len: 4.5 },
+  airraid: { n: 'SYRENA PRZECIWLOTNICZA', len: 7.5 },
+  klaxon:  { n: 'ALARM BOJOWY', len: 5.5 },
+  glitch:  { n: 'AWARIA SYSTEMU', len: 4.5 },
+  emp:     { n: 'IMPULS EMP', len: 4.5 },
+};
+$('cdEnd').innerHTML = Object.entries(FINALS).map(([k, f]) => `<option value="${k}">${f.n}</option>`).join('') + '<option value="random">LOSOWY ?</option>';
+let cd = null, bus = null;
+$('cdLen').value = store.get('cdLen', '10');
+$('cdEnd').value = FINALS[store.get('cdEnd', 'boom')] || store.get('cdEnd') === 'random' ? store.get('cdEnd', 'boom') : 'boom';
+$('cdVol').value = store.get('cdVol', 1);
 const cdVolLbl = () => $('cdVolV').textContent = Math.round($('cdVol').value * 100) + '%';
 cdVolLbl();
 $('cdDisp').textContent = 'T-' + String($('cdLen').value).padStart(2, '0');
 $('cdLen').onchange = () => { store.set('cdLen', $('cdLen').value); if (!cd) $('cdDisp').textContent = 'T-' + String($('cdLen').value).padStart(2, '0'); };
 $('cdEnd').onchange = () => store.set('cdEnd', $('cdEnd').value);
-$('cdVol').oninput = () => { cdVolLbl(); store.set('cdVol', +$('cdVol').value); cd && cd.out.gain.setTargetAtTime(+$('cdVol').value, ctx.currentTime, 0.02); };
+$('cdVol').oninput = () => { cdVolLbl(); store.set('cdVol', +$('cdVol').value); bus && bus.out.gain.setTargetAtTime(+$('cdVol').value, ctx.currentTime, 0.02); };
 
-function noiseBuffer(sec) {
-  const b = ctx.createBuffer(1, Math.floor(ctx.sampleRate * sec), ctx.sampleRate), d = b.getChannelData(0);
-  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-  return b;
+// --- bufory i szyna ---
+let WHITE, BROWN, IR;
+function buffers() {
+  if (WHITE) return;
+  const sr = ctx.sampleRate, len = sr * 3;
+  WHITE = ctx.createBuffer(1, len, sr); BROWN = ctx.createBuffer(1, len, sr);
+  const w = WHITE.getChannelData(0), b = BROWN.getChannelData(0); let last = 0;
+  for (let i = 0; i < len; i++) { const r = Math.random() * 2 - 1; w[i] = r; last = (last + 0.02 * r) / 1.02; b[i] = last * 3.5; }
+  const il = Math.floor(sr * 3.5); IR = ctx.createBuffer(2, il, sr);
+  for (let c = 0; c < 2; c++) { const d = IR.getChannelData(c); for (let i = 0; i < il; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / il, 2.8); }
 }
-function cdTone(t, type, f, dur, vol, f2) {
-  const o = ctx.createOscillator(), g = ctx.createGain();
-  o.type = type; o.frequency.setValueAtTime(f, t);
-  if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + dur);
-  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + 0.005);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(g).connect(cd.out); o.start(t); o.stop(t + dur + 0.05);
-  cd.nodes.push(o);
+function makeBus() {
+  buffers();
+  const out = ctx.createGain(); out.gain.value = +$('cdVol').value;
+  const comp = ctx.createDynamicsCompressor();
+  comp.threshold.value = -12; comp.knee.value = 4; comp.ratio.value = 8; comp.attack.value = 0.002; comp.release.value = 0.2;
+  const pre = ctx.createGain(), verb = ctx.createConvolver(), vg = ctx.createGain();
+  verb.buffer = IR; vg.gain.value = 0.4;
+  pre.connect(comp); verb.connect(vg).connect(comp); comp.connect(out).connect(master);
+  return { pre, verb, out, nodes: [] };
 }
-function cdFinale(t, kind) {
-  const out = cd.out;
-  const shaper = ctx.createWaveShaper();
-  const c = new Float32Array(1024); for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; c[i] = Math.tanh(x * 4); }
-  shaper.curve = c; shaper.connect(out);
-  if (kind === 'boom') {
-    // potężny niski huk + fala szumu
-    const o = ctx.createOscillator(), g = ctx.createGain();
-    o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(28, t + 1.2);
-    g.gain.setValueAtTime(1.2, t); g.gain.exponentialRampToValueAtTime(0.001, t + 2.2);
-    o.connect(g).connect(shaper); o.start(t); o.stop(t + 2.3); cd.nodes.push(o);
-    const n = ctx.createBufferSource(), lp = ctx.createBiquadFilter(), ng = ctx.createGain();
-    n.buffer = noiseBuffer(3); lp.type = 'lowpass';
-    lp.frequency.setValueAtTime(9000, t); lp.frequency.exponentialRampToValueAtTime(150, t + 2.5);
-    ng.gain.setValueAtTime(1, t); ng.gain.exponentialRampToValueAtTime(0.001, t + 3);
-    n.connect(lp).connect(ng).connect(out); n.start(t); cd.nodes.push(n);
-  } else if (kind === 'alarm') {
-    // syrena alarmowa — trzy zdudnione piły, wahająca się wysokość
-    [0, 7, -5].forEach(det => {
-      const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sawtooth'; o.detune.value = det * 10;
-      for (let k = 0; k < 6; k++) { o.frequency.setValueAtTime(k % 2 ? 620 : 880, t + k * 0.35); }
-      g.gain.setValueAtTime(0.35, t); g.gain.setValueAtTime(0.35, t + 1.9); g.gain.exponentialRampToValueAtTime(0.001, t + 2.3);
-      o.connect(g).connect(shaper); o.start(t); o.stop(t + 2.4); cd.nodes.push(o);
-    });
-  } else {
-    // „krzyk” — wysoki, drgający, przesterowany pisk z szumem
-    const o = ctx.createOscillator(), lfo = ctx.createOscillator(), lg = ctx.createGain(), g = ctx.createGain();
-    o.type = 'sawtooth'; o.frequency.setValueAtTime(700, t); o.frequency.linearRampToValueAtTime(1300, t + 0.4); o.frequency.linearRampToValueAtTime(900, t + 1.8);
-    lfo.frequency.value = 14; lg.gain.value = 90; lfo.connect(lg).connect(o.frequency);
-    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1600; bp.Q.value = 1.5;
-    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1, t + 0.05); g.gain.setValueAtTime(1, t + 1.5); g.gain.exponentialRampToValueAtTime(0.001, t + 2);
-    o.connect(bp).connect(g).connect(shaper); o.start(t); lfo.start(t); o.stop(t + 2.1); lfo.stop(t + 2.1); cd.nodes.push(o, lfo);
-    const n = ctx.createBufferSource(), ng = ctx.createGain(); n.buffer = noiseBuffer(2);
-    ng.gain.setValueAtTime(0.25, t); ng.gain.exponentialRampToValueAtTime(0.001, t + 1.8);
-    n.connect(ng).connect(shaper); n.start(t); cd.nodes.push(n);
+// --- klocki ---
+const G = (v) => { const g = ctx.createGain(); g.gain.value = v; return g; };
+function O(type, f, t, dur) { const o = ctx.createOscillator(); o.type = type; o.frequency.setValueAtTime(f, t); o.start(t); o.stop(t + dur + 0.05); bus.nodes.push(o); return o; }
+function N(t, dur, brown) { const n = ctx.createBufferSource(); n.buffer = brown ? BROWN : WHITE; n.loop = true; n.loopStart = Math.random(); n.start(t, Math.random() * 2); n.stop(t + dur + 0.05); bus.nodes.push(n); return n; }
+function F(type, f, q = 0.7, t, f2, dur) { const b = ctx.createBiquadFilter(); b.type = type; b.Q.value = q; b.frequency.setValueAtTime(f, t ?? 0); if (f2) b.frequency.exponentialRampToValueAtTime(f2, t + dur); return b; }
+function E(t, a, hold, r, peak = 1) { const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.setValueAtTime(peak, t + a + hold); g.gain.exponentialRampToValueAtTime(0.0001, t + a + hold + r); return g; }
+function D(k) { const s = ctx.createWaveShaper(), c = new Float32Array(2048); for (let i = 0; i < 2048; i++) { const x = i / 1023.5 - 1; c[i] = Math.tanh(x * k) / Math.tanh(k); } s.curve = c; s.oversample = '2x'; return s; }
+function OUT(node, dry = 1, wet = 0) { if (dry) node.connect(G(dry)).connect(bus.pre); if (wet) node.connect(G(wet)).connect(bus.verb); }
+const chain = (...n) => { for (let i = 0; i < n.length - 1; i++) n[i].connect(n[i + 1]); return n[n.length - 1]; };
+const rnd = (a, b) => a + Math.random() * (b - a);
+
+// --- napięcie ---
+function sTick(t, p, urgent) {
+  const f = 900 + p * 700;
+  const o = O('sine', f, t, 0.14), sq = O('square', f, t, 0.14);
+  const bp = F('bandpass', f, 2), e = E(t, 0.003, 0.07, 0.06, urgent ? 0.5 : 0.35);
+  o.connect(bp); sq.connect(G(0.25)).connect(bp); OUT(chain(bp, e), 1, 0.15);
+  // mechaniczne kliknięcie zegara
+  OUT(chain(N(t, 0.02), F('highpass', 3000, 0.7, t), E(t, 0.001, 0.003, 0.012, 0.5)), 1, 0.1);
+}
+function sHeart(t, s) {
+  [[0, 1], [0.17, 0.7]].forEach(([dt, k]) => {
+    const tt = t + dt, o = O('sine', 75, tt, 0.25);
+    o.frequency.exponentialRampToValueAtTime(38, tt + 0.15);
+    OUT(chain(o, E(tt, 0.004, 0.03, 0.18, 1.1 * k * s)), 1, 0);
+    OUT(chain(N(tt, 0.1, true), F('lowpass', 160, 0.7, tt), E(tt, 0.003, 0.02, 0.08, 0.8 * k * s)), 1, 0);
+  });
+}
+function sShepard(t0, len) {
+  // 6 sinusów oktawę od siebie, każdy jedzie w górę o oktawę, obwiednia dzwonowa — złudzenie bez końca rosnącego tonu
+  const K = 6, steps = 64;
+  for (let i = 0; i < K; i++) {
+    const o = O('sine', 40 * 2 ** i, t0, len);
+    o.frequency.exponentialRampToValueAtTime(40 * 2 ** (i + 1), t0 + len);
+    const curve = new Float32Array(steps);
+    for (let s = 0; s < steps; s++) {
+      const pos = i + s / (steps - 1), bell = Math.exp(-((pos - K / 2) ** 2) / (2 * 1.3 ** 2));
+      curve[s] = bell * (0.03 + 0.17 * (s / (steps - 1)) ** 1.5);
+    }
+    const g = ctx.createGain(); g.gain.value = 0; g.gain.setValueCurveAtTime(curve, t0, len);
+    OUT(chain(o, g), 1, 0.25);
   }
 }
+function sDrone(t0, len) {
+  const lp = F('lowpass', 90, 2, t0, 260, len);
+  const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.35, t0 + len); g.gain.setValueAtTime(0, t0 + len);
+  [41.2, 41.6, 61.7].forEach(f => O('sawtooth', f, t0, len).connect(lp));
+  OUT(chain(lp, g), 1, 0.1);
+}
+function sStatic(t0, len) {
+  for (let k = 0; k < len * 9; k++) {
+    const t = t0 + Math.random() * len, d = rnd(0.01, 0.07);
+    OUT(chain(N(t, d), F('bandpass', rnd(800, 5000), 3, t), E(t, 0.001, d, 0.01, rnd(0.1, 0.35))), 1, 0.1);
+  }
+}
+function sRiser(tEnd, len) {
+  const t = tEnd - len;
+  const bp = F('bandpass', 300, 1.5, t, 7000, len);
+  const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.7, tEnd - 0.02); g.gain.linearRampToValueAtTime(0, tEnd);
+  OUT(chain(N(t, len), bp, g), 1, 0.3);
+  const o = O('sawtooth', 200, t, len); o.frequency.exponentialRampToValueAtTime(1400, tEnd);
+  const g2 = ctx.createGain(); g2.gain.setValueAtTime(0.0001, t); g2.gain.exponentialRampToValueAtTime(0.12, tEnd - 0.02); g2.gain.linearRampToValueAtTime(0, tEnd);
+  OUT(chain(o, F('lowpass', 2500, 1, t), g2), 1, 0.2);
+}
+
+// --- finały ---
+function fBoom(t, big) {
+  OUT(chain(N(t, 0.06), F('highpass', 1200, 0.7, t), E(t, 0.001, 0.01, 0.05, 1.3)), 1, 0.5);           // trzask
+  const body = O('sine', 130, t, 2.2); body.frequency.exponentialRampToValueAtTime(30, t + 0.9);
+  OUT(chain(body, D(3), E(t, 0.002, 0.08, big ? 2.5 : 1.6, 1.4)), 1, 0.2);                            // uderzenie
+  OUT(chain(N(t, big ? 8 : 4, true), F('lowpass', big ? 900 : 500, 0.9, t, 70, big ? 7 : 3.5), E(t, 0.02, 0.3, big ? 7 : 3.5, 1.4)), 1, 0.6); // dudnienie
+  for (let k = 0; k < (big ? 50 : 28); k++) {                                                          // gruz
+    const tt = t + 0.1 + Math.random() ** 1.6 * (big ? 4 : 2.2), d = rnd(0.01, 0.04);
+    OUT(chain(N(tt, d), F('bandpass', rnd(600, 4500), 2, tt), E(tt, 0.001, d, 0.03, rnd(0.08, 0.4))), 1, 0.4);
+  }
+  if (big) {
+    const sw = O('sine', 60, t + 0.45, 3); sw.frequency.exponentialRampToValueAtTime(22, t + 2.5);    // fala uderzeniowa
+    OUT(chain(sw, D(2), E(t + 0.45, 0.05, 0.4, 2.5, 1.3)), 1, 0.3);
+    OUT(chain(N(t + 0.5, 5), F('bandpass', 400, 0.6, t + 0.5, 120, 4.5), E(t + 0.5, 0.6, 1, 3.5, 0.6)), 1, 0.8); // wiatr
+    OUT(chain(O('sine', 4100, t + 0.3, 6), E(t + 0.3, 0.8, 2.5, 2.5, 0.05)), 1, 0);                   // piszczenie w uszach
+  }
+}
+function fJump(t) {
+  [65.4, 69.3, 98, 103.8, 138.6, 196, 277.2, 415.3, 587.3, 830.6, 1174.7].forEach((f, i) => {
+    const o = O('sawtooth', f * rnd(0.995, 1.005), t, 2.2);
+    OUT(chain(o, F('lowpass', 7000, 1, t, 600, 1.8), E(t, 0.004, 0.08, 1.8, 0.2)), 1, 0.6);
+  });
+  OUT(chain(N(t, 0.25), F('highpass', 600, 0.7, t), E(t, 0.001, 0.02, 0.2, 1.2)), 1, 0.5);
+  const sub = O('sine', 70, t, 1); sub.frequency.exponentialRampToValueAtTime(35, t + 0.6);
+  OUT(chain(sub, E(t, 0.002, 0.05, 0.8, 1.5)), 1, 0);
+  const scr = O('sawtooth', 1800, t, 1.6); scr.frequency.exponentialRampToValueAtTime(3200, t + 1.4);   // skrzypce-zgrzyt
+  const lfo = O('sine', 23, t, 1.6), lg = G(120); lfo.connect(lg).connect(scr.frequency);
+  OUT(chain(scr, F('bandpass', 2600, 2, t), E(t, 0.01, 0.9, 0.6, 0.35)), 1, 0.6);
+}
+function fScream(t) {
+  [[0, 1, 430], [0.06, 0.7, 520]].forEach(([dt, k, f0]) => {
+    const tt = t + dt, o = O('sawtooth', f0 * 0.8, tt, 2.6);
+    o.frequency.exponentialRampToValueAtTime(f0 * 1.25, tt + 0.25); o.frequency.exponentialRampToValueAtTime(f0, tt + 1.9);
+    const vib = O('sine', 6.5, tt, 2.6), vg = G(f0 * 0.05); vib.connect(vg).connect(o.frequency);
+    const jit = N(tt, 2.6), jg = G(f0 * 0.08); chain(jit, F('lowpass', 30, 0.7, tt), jg).connect(o.frequency);
+    const d = D(2.5), sum = G(1);
+    [[800, 6, 1], [1150, 8, 0.6], [2900, 10, 0.45], [3900, 12, 0.25]].forEach(([f, q, g]) => o.connect(F('bandpass', f, q, tt)).connect(G(g * 3)).connect(sum));
+    OUT(chain(sum, d, E(tt, 0.04, 1.6, 0.7, 0.9 * k)), 1, 0.55);
+    OUT(chain(N(tt, 2.2), F('bandpass', 2500, 1.2, tt), E(tt, 0.04, 1.5, 0.6, 0.15 * k)), 1, 0.4);    // oddech
+  });
+}
+function fBraam(t) {
+  const lp = F('lowpass', 120, 4, t);
+  lp.frequency.exponentialRampToValueAtTime(2800, t + 0.35); lp.frequency.exponentialRampToValueAtTime(180, t + 3.5);
+  [43.65, 65.4, 87.3, 130.8].forEach(f => [-8, 0, 8].forEach(det => { const o = O('sawtooth', f, t, 4); o.detune.value = det; o.connect(lp); }));
+  OUT(chain(lp, D(2), E(t, 0.06, 2.2, 1.6, 0.9)), 1, 0.45);
+  OUT(chain(N(t, 3.5, true), F('lowpass', 300, 0.7, t), E(t, 0.05, 1.5, 1.8, 0.5)), 1, 0.3);
+}
+function fAirRaid(t) {
+  const lp = F('lowpass', 2600, 1, t), sum = G(1);
+  [[1, 0.5], [1.26, 0.35]].forEach(([r, g]) => {
+    ['square', 'sawtooth'].forEach(type => {
+      const o = O(type, 110 * r, t, 7.2);
+      o.frequency.exponentialRampToValueAtTime(600 * r, t + 2.6);
+      o.frequency.setValueAtTime(600 * r, t + 4.2);
+      o.frequency.exponentialRampToValueAtTime(150 * r, t + 7);
+      o.connect(G(g * 0.5)).connect(sum);
+    });
+  });
+  const trem = O('sine', 5, t, 7.2), tg = G(0.15), amp = G(0.85); trem.connect(tg).connect(amp.gain);
+  OUT(chain(sum, lp, amp, E(t, 0.6, 5, 1.6, 0.55)), 0.7, 0.9);
+}
+function fKlaxon(t) {
+  for (let k = 0; k < 4; k++) {
+    const tt = t + k * 0.62, sum = G(1);
+    [[-6, 'sawtooth'], [6, 'sawtooth'], [0, 'square']].forEach(([det, type]) => {
+      const o = O(type, 330, tt, 0.48); o.detune.value = det;
+      o.frequency.linearRampToValueAtTime(415, tt + 0.12); o.frequency.setValueAtTime(415, tt + 0.38); o.frequency.linearRampToValueAtTime(370, tt + 0.48);
+      o.connect(sum);
+    });
+    OUT(chain(sum, F('bandpass', 1100, 1.2, tt), D(3), E(tt, 0.01, 0.38, 0.06, 0.5)), 1, 0.35);
+  }
+  for (let k = 0; k < 3; k++) {                                                                          // „whoop” okrętowy
+    const tt = t + 2.6 + k * 0.95, o = O('sawtooth', 250, tt, 0.85);
+    o.frequency.exponentialRampToValueAtTime(1300, tt + 0.8);
+    OUT(chain(o, F('lowpass', 3000, 1, tt), E(tt, 0.02, 0.7, 0.08, 0.35)), 1, 0.4);
+  }
+}
+function fGlitch(t) {
+  let tt = t;
+  const crush = ctx.createWaveShaper(), c = new Float32Array(256);
+  for (let i = 0; i < 256; i++) c[i] = Math.round((i / 127.5 - 1) * 4) / 4;
+  crush.curve = c; crush.connect(G(1)).connect(bus.pre);
+  while (tt < t + 2.6) {
+    const d = rnd(0.025, 0.11), r = Math.random(), e = E(tt, 0.001, d, 0.005, rnd(0.25, 0.6));
+    if (r < 0.35) chain(N(tt, d), F('bandpass', rnd(300, 6000), 4, tt), e, crush);
+    else if (r < 0.9) chain(O(Math.random() < 0.5 ? 'square' : 'sawtooth', rnd(60, 2500), tt, d), e, crush);
+    tt += d + (Math.random() < 0.2 ? rnd(0.03, 0.12) : 0);
+  }
+  const pd = O('sawtooth', 420, tt, 1.5); pd.frequency.exponentialRampToValueAtTime(18, tt + 1.4);           // wyłączenie zasilania
+  OUT(chain(pd, F('lowpass', 3000, 1, tt, 100, 1.4), E(tt, 0.01, 0.6, 0.8, 0.5)), 1, 0.3);
+  OUT(chain(O('sine', 55, tt + 1.45, 0.3), E(tt + 1.45, 0.002, 0.03, 0.25, 1)), 1, 0.2);                  // klik przekaźnika
+}
+function fEmp(t) {
+  const ch = O('sine', 180, t, 1.6); ch.frequency.exponentialRampToValueAtTime(9000, t + 1.5);
+  const trem = O('square', 8, t, 1.6), tg = G(0.5), amp = G(0.5); trem.frequency.exponentialRampToValueAtTime(60, t + 1.5);
+  trem.connect(tg).connect(amp.gain);
+  const cg = ctx.createGain(); cg.gain.setValueAtTime(0.02, t); cg.gain.exponentialRampToValueAtTime(0.45, t + 1.5); cg.gain.linearRampToValueAtTime(0, t + 1.52);
+  OUT(chain(ch, amp, cg), 1, 0.3);
+  const z = t + 1.52;
+  OUT(chain(N(z, 0.3), F('highpass', 2000, 0.7, z), E(z, 0.001, 0.05, 0.25, 1.2)), 1, 0.6);
+  const drop = O('sawtooth', 3200, z, 0.5); drop.frequency.exponentialRampToValueAtTime(40, z + 0.45);
+  OUT(chain(drop, D(4), E(z, 0.001, 0.05, 0.4, 0.6)), 1, 0.4);
+  OUT(chain(O('sine', 80, z, 0.8), E(z, 0.002, 0.05, 0.6, 1.3)), 1, 0.2);
+  for (let k = 0; k < 40; k++) {                                                                          // iskry
+    const tt = z + 0.05 + Math.random() ** 1.4 * 2, d = rnd(0.003, 0.02);
+    OUT(chain(N(tt, d), F('highpass', rnd(2000, 7000), 1, tt), E(tt, 0.0005, d, 0.01, rnd(0.1, 0.6))), 1, 0.4);
+  }
+}
+function playFinal(kind, t) {
+  ({ boom: () => fBoom(t), nuke: () => fBoom(t, true), jump: () => fJump(t), scream: () => fScream(t), braam: () => fBraam(t),
+     airraid: () => fAirRaid(t), klaxon: () => fKlaxon(t), glitch: () => fGlitch(t), emp: () => fEmp(t),
+     fake: () => { fJump(t + FINALS.fake.delay); fBoom(t + FINALS.fake.delay); } })[kind]();
+}
+
+// --- sterowanie ---
+function cdUI(run) {
+  $('cdTile').classList.toggle('run', run); document.body.classList.toggle('cdrun', run);
+  $('cdGo').innerHTML = run ? '■ Przerwij <kbd class="hide-m">C</kbd>' : '⚠ Uruchom odliczanie <kbd class="hide-m">C</kbd>';
+  setLed('ledCd', run ? 'red' : '');
+  if (!run) { $('cdDisp').textContent = 'T-' + String($('cdLen').value).padStart(2, '0'); $('cdBar').style.width = 0; }
+}
+function flash() { document.body.classList.add('alarm'); setTimeout(() => document.body.classList.remove('alarm'), 1900); }
+function pickFinal() { const k = $('cdEnd').value; return k === 'random' ? Object.keys(FINALS)[Math.floor(Math.random() * Object.keys(FINALS).length)] : k; }
+
+async function previewFinal() {
+  if (cd) return;
+  await unlock();
+  abortBus();
+  const kind = pickFinal();
+  bus = makeBus();
+  const b = bus, t = ctx.currentTime + 0.05;
+  playFinal(kind, t);
+  log(`PODGLĄD FINAŁU: ${FINALS[kind].n}`);
+  setTimeout(() => { if (bus === b && !cd) { b.out.disconnect(); bus = null; } }, (FINALS[kind].len + (FINALS[kind].delay || 0) + 1) * 1000);
+}
+function abortBus() {
+  if (!bus) return;
+  const b = bus, t = ctx.currentTime; bus = null;
+  b.out.gain.setTargetAtTime(0, t, 0.02);
+  b.nodes.forEach(n => { try { n.stop(t + 0.1); } catch {} });
+  setTimeout(() => b.out.disconnect(), 200);
+}
+
 async function startCountdown() {
   if (cd) { abortCountdown(); return; }
   await unlock();
-  const N = +$('cdLen').value, t0 = ctx.currentTime + 0.15;
-  const out = ctx.createGain(); out.gain.value = +$('cdVol').value; out.connect(master);
-  cd = { out, nodes: [], t0, N, timer: 0 };
+  abortBus();
+  const N = +$('cdLen').value, t0 = ctx.currentTime + 0.15, end = t0 + N, kind = pickFinal(), fin = FINALS[kind];
+  bus = makeBus();
+  cd = { t0, N, timer: 0, bus };
 
-  // rosnąca syrena w tle
-  const sir = ctx.createOscillator(), sg = ctx.createGain(), slp = ctx.createBiquadFilter();
-  sir.type = 'sawtooth'; sir.frequency.setValueAtTime(70, t0); sir.frequency.exponentialRampToValueAtTime(420, t0 + N);
-  slp.type = 'lowpass'; slp.frequency.setValueAtTime(300, t0); slp.frequency.exponentialRampToValueAtTime(3500, t0 + N);
-  sg.gain.setValueAtTime(0.0001, t0); sg.gain.exponentialRampToValueAtTime(0.22, t0 + N);
-  sg.gain.setValueAtTime(0, t0 + N);
-  sir.connect(slp).connect(sg).connect(out); sir.start(t0); sir.stop(t0 + N + 0.05); cd.nodes.push(sir);
-
+  sShepard(t0, N); sDrone(t0, N);
+  sStatic(Math.max(t0, end - 3), Math.min(3, N));
+  sRiser(end, Math.min(2.2, N));
+  // serce przyspiesza: od ~60 do ~150 uderzeń/min
+  for (let t = t0; t < end - 0.3;) { const p = (t - t0) / N; sHeart(t, 0.6 + p * 0.5); t += 1 / (1 + p * 1.5); }
   for (let i = 0; i < N; i++) {
     const t = t0 + i, p = N > 1 ? i / (N - 1) : 1, left = N - i;
-    // tyknięcie: coraz wyżej
-    cdTone(t, 'square', 600 + p * 900, 0.14, 0.35);
-    // bicie serca: niskie podwójne uderzenie
-    cdTone(t, 'sine', 70, 0.18, 0.9, 40); cdTone(t + 0.22, 'sine', 65, 0.16, 0.7, 38);
-    // ostatnie 3 sekundy: dodatkowe szybkie piski
-    if (left <= 3) { cdTone(t + 0.33, 'square', 1500 + p * 300, 0.1, 0.4); cdTone(t + 0.66, 'square', 1600 + p * 300, 0.1, 0.45); }
+    sTick(t, p, left <= 3);
+    if (left <= 3) { sTick(t + 0.5, p, true); }
+    if (left <= 1) { sTick(t + 0.25, p, true); sTick(t + 0.75, p, true); }
   }
-  cdFinale(t0 + N, $('cdEnd').value);
+  playFinal(kind, end);
 
-  $('cdTile').classList.add('run'); document.body.classList.add('cdrun');
-  $('cdGo').innerHTML = '■ Przerwij <kbd class="hide-m">C</kbd>'; setLed('ledCd', 'red');
-  log(`ODLICZANIE START: T-${N} · FINAŁ ${$('cdEnd').selectedOptions[0].textContent}`);
+  cdUI(true);
+  log(`ODLICZANIE START: T-${N} · FINAŁ ${fin.n}`);
+  let flashed = false;
   const tick = () => {
     if (!cd) return;
     const el = ctx.currentTime - cd.t0, left = Math.max(0, Math.ceil(cd.N - el));
     const txt = 'T-' + String(left).padStart(2, '0');
-    $('cdDisp').textContent = txt; $('cdTop').textContent = 'CD ' + txt;
+    if (el < cd.N) { $('cdDisp').textContent = txt; $('cdTop').textContent = 'CD ' + txt; }
     $('cdBar').style.width = Math.min(100, Math.max(0, el / cd.N * 100)) + '%';
-    if (el >= cd.N) {
-      $('cdDisp').textContent = '!!!!';
-      document.body.classList.add('alarm');
-      setTimeout(() => document.body.classList.remove('alarm'), 1900);
-      log('ODLICZANIE: ZERO');
-      const c = cd; setTimeout(() => { if (cd === c) finishCountdown(); }, 3000);
-      return;
+    if (el >= cd.N && kind === 'fake' && el < cd.N + fin.delay) $('cdDisp').textContent = 'T-00';
+    if (el >= cd.N + (fin.delay || 0) && !flashed) {
+      flashed = true; $('cdDisp').textContent = '!!!!'; flash(); log(`ODLICZANIE: ZERO · ${fin.n}`);
+      const c = cd; setTimeout(() => { if (cd === c) finishCountdown(); }, fin.len * 1000);
     }
     cd.timer = requestAnimationFrame(tick);
   };
@@ -1174,20 +1361,17 @@ async function startCountdown() {
 function finishCountdown() {
   if (!cd) return;
   cancelAnimationFrame(cd.timer);
-  cd.out.disconnect(); cd = null;
-  $('cdTile').classList.remove('run'); document.body.classList.remove('cdrun', 'alarm');
-  $('cdGo').innerHTML = '⚠ Uruchom odliczanie <kbd class="hide-m">C</kbd>'; setLed('ledCd', '');
-  $('cdDisp').textContent = 'T-' + String($('cdLen').value).padStart(2, '0'); $('cdBar').style.width = 0;
+  if (bus === cd.bus) { cd.bus.out.disconnect(); bus = null; }
+  cd = null; document.body.classList.remove('alarm');
+  cdUI(false);
 }
 function abortCountdown() {
-  if (!cd) return;
-  const t = ctx.currentTime;
-  cd.out.gain.setTargetAtTime(0, t, 0.02);
-  cd.nodes.forEach(n => { try { n.stop(t + 0.1); } catch {} });
-  log('ODLICZANIE PRZERWANE');
-  const c = cd; setTimeout(() => { if (cd === c) finishCountdown(); }, 150);
+  if (!cd && !bus) return;
+  abortBus();
+  if (cd) { log('ODLICZANIE PRZERWANE'); cancelAnimationFrame(cd.timer); cd = null; document.body.classList.remove('alarm'); cdUI(false); }
 }
 $('cdGo').onclick = startCountdown;
+$('cdPrev').onclick = previewFinal;
 
 // ---------- KLAWIATURA ----------
 const typing = (e) => ['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName) && !['checkbox', 'range', 'file'].includes(e.target.type);
