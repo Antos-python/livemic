@@ -223,6 +223,22 @@
   .top .cdtop { color: var(--red); display: none; }
   body.cdrun .top .cdtop { display: inline; animation: blink 1s steps(2) infinite; }
 
+  /* ---------- NAWIEDZONY DOM / NAGRYWANIE ---------- */
+  .spooks { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; }
+  .spook { display: flex; border: 1px solid var(--line2); background: rgba(255,255,255,.015); }
+  .spook .sp-play { all: unset; cursor: pointer; flex: 1; padding: 10px; display: grid; gap: 2px; }
+  .spook .sp-play:hover { color: var(--g); }
+  .spook .sp-play .c { font-size: 9px; color: var(--dim); letter-spacing: 1px; }
+  .spook .sp-play .n { font-size: 11px; font-weight: 700; letter-spacing: 1px; }
+  .sp-chk { display: grid; place-items: center; padding: 0 10px; border-left: 1px solid var(--line2); cursor: pointer; }
+  .sp-chk input { display: none; }
+  .sp-chk i { width: 14px; height: 14px; border: 1px solid var(--line2); }
+  .sp-chk input:checked + i { background: var(--g); border-color: var(--g); box-shadow: 0 0 6px var(--g); }
+  #hntTile.hit { box-shadow: 0 0 0 1px var(--red), 0 0 24px rgba(255,59,48,.5); }
+  .rec-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .rec-time { font-size: 26px; font-weight: 800; color: var(--amber); font-variant-numeric: tabular-nums; letter-spacing: 2px; min-width: 110px; }
+  #recTile.run .rec-time { color: var(--red); animation: blink 1s steps(2) infinite; }
+
   /* ---------- TELEFON: menu na dole ---------- */
   @media (max-width: 760px) {
     .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto auto; }
@@ -255,11 +271,12 @@
   <nav id="nav">
     <button data-s="tx" class="act"><span class="k">01</span><span class="t">TX</span><span class="s">Nadawanie</span></button>
     <button data-s="sfx"><span class="k">02</span><span class="t">SFX</span><span class="s">Dźwięki</span></button>
-    <button data-s="vox"><span class="k">03</span><span class="t">VOX</span><span class="s">Głos</span></button>
-    <button data-s="link"><span class="k">04</span><span class="t">LINK</span><span class="s">Głośnik</span></button>
-    <button data-s="sys"><span class="k">05</span><span class="t">SYS</span><span class="s">System</span></button>
+    <button data-s="hnt"><span class="k">03</span><span class="t">HNT</span><span class="s">Nawiedz.</span></button>
+    <button data-s="vox"><span class="k">04</span><span class="t">VOX</span><span class="s">Głos</span></button>
+    <button data-s="link"><span class="k">05</span><span class="t">LINK</span><span class="s">Głośnik</span></button>
+    <button data-s="sys"><span class="k">06</span><span class="t">SYS</span><span class="s">System</span></button>
     <div class="grow"></div>
-    <div class="ver">BUILD 2.0 // PL</div>
+    <div class="ver">BUILD 2.2 // PL</div>
   </nav>
 
   <main>
@@ -344,7 +361,50 @@
         </div>
         <div class="drop hide-m" id="drop" style="margin-top:10px">▼ Przeciągnij pliki audio tutaj ▼</div>
       </div>
+      <div class="tile cd-tile" id="recTile">
+        <div class="th"><span class="id">▣ REC-01</span><span>Nagraj z mikrofonu do padu</span><i class="led" id="ledRec"></i></div>
+        <div class="rec-row">
+          <button class="btn dng cd-go" id="recBtn">● NAGRAJ</button>
+          <span class="rec-time" id="recTime">00.0 s</span>
+          <span class="muted">max 30 s · nie leci na głośnik · nagrywa z wybranym efektem:</span>
+        </div>
+        <div class="fxgrid" id="fxRec" style="margin-top:10px"></div>
+      </div>
       <div class="pads" id="pads"></div>
+    </section>
+
+    <!-- ================= HNT ================= -->
+    <section class="screen" id="s-hnt">
+      <h2 class="scr-title">Nawiedzony dom <small>HNT-03 // automatyczne straszenie</small></h2>
+      <div class="tiles">
+        <div class="tile span2 cd-tile" id="hntTile">
+          <div class="th"><span class="id">▣ HNT-A</span><span>Tryb nawiedzony</span><i class="led" id="ledHnt"></i></div>
+          <div class="cd-wrap">
+            <div class="cd-disp" id="hntDisp">WYŁ</div>
+            <div class="cd-side">
+              <button class="btn dng cd-go" id="hntGo">☠ Uruchom nawiedzanie</button>
+              <dl class="readout">
+                <dt>Następny</dt><dd id="hntNext">--</dd>
+                <dt>Zdarzeń</dt><dd id="hntCount">0</dd>
+                <dt>Ostatnie</dt><dd id="hntLast" style="max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">--</dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+        <div class="tile">
+          <div class="th"><span class="id">▣ HNT-B</span><span>Ustawienia</span></div>
+          <div class="field"><label>Odstęp min <span id="hMinV">20 s</span></label><input type="range" id="hMin" min="5" max="300" step="5" value="20"></div>
+          <div class="field" style="margin-top:6px"><label>Odstęp max <span id="hMaxV">90 s</span></label><input type="range" id="hMax" min="10" max="900" step="10" value="90"></div>
+          <label class="sw" style="margin-top:6px">Narastanie (coraz częściej)<input type="checkbox" id="hEsc" checked><i></i></label>
+          <label class="sw">Też moje dźwięki z SFX<input type="checkbox" id="hMine"><i></i></label>
+          <div class="field" style="margin-top:6px"><label>Głośność <span id="hVolV">100%</span></label><input type="range" id="hVol" min="0.1" max="1.5" step="0.05" value="1"></div>
+        </div>
+        <div class="tile span2">
+          <div class="th"><span class="id">▣ HNT-C</span><span>Odgłosy grozy · ☑ = losuj</span></div>
+          <div class="spooks" id="spooks"></div>
+        </div>
+      </div>
+      <p class="note" style="margin:0">Aplikacja musi zostać otwarta, a ekran włączony — po zablokowaniu iPhone wstrzymuje dźwięk. Najlepiej: komputer + KALLSUP schowany w pokoju.</p>
     </section>
 
     <!-- ================= VOX ================= -->
@@ -449,7 +509,7 @@
             <dt><kbd>1</kbd>–<kbd>0</kbd></dt><dd>Dźwięki</dd>
             <dt><kbd>Esc</kbd></dt><dd>Stop wszystko</dd>
             <dt><kbd>C</kbd></dt><dd>Odliczanie</dd>
-            <dt><kbd>Q</kbd>–<kbd>T</kbd></dt><dd>Ekrany menu</dd>
+            <dt><kbd>Q</kbd>–<kbd>Y</kbd></dt><dd>Ekrany menu</dd>
           </dl>
         </div>
         <div class="tile span2">
@@ -496,7 +556,9 @@ show(store.get('screen', 'tx'));
 // mic -> bramka -> micGain -> notch x4 -> fbDuck -> [efekt] -> pttGate -> master
 // pady -> sbGain -> duckGain -> master
 let ctx, master, sbGain, duckGain, pttGate, micGain, fbDuck, fxIn, fxOut, gateNode, rawAnalyser;
-let micSrc, micStream, workletOK = false, ctxReady, tapNode, rxChunks = [];
+let micSrc, micStream, workletOK = false, ctxReady, tapNode, rxChunks = [], rxCollect = false;
+const tapUsers = new Set();
+function tapUse(who, on) { on ? tapUsers.add(who) : tapUsers.delete(who); tapNode?.port.postMessage(tapUsers.size > 0); }
 const notches = [];
 
 function ensureCtx() {
@@ -526,7 +588,7 @@ function ensureCtx() {
         gateNode.port.onmessage = (e) => gateOpen(e.data);
         applyGate();
         tapNode = new AudioWorkletNode(ctx, 'tap', { numberOfOutputs: 0 });
-        tapNode.port.onmessage = (e) => rxChunks.push(e.data);
+        tapNode.port.onmessage = (e) => { if (rxCollect) rxChunks.push(e.data); if (recCollect) recChunks.push(e.data); };
         fxOut.connect(tapNode);
       } else gateNode = ctx.createGain();
       gateNode.connect(micGain);
@@ -568,7 +630,26 @@ const FX = {
       return { i, o, set: (x) => osc.frequency.setTargetAtTime(30 + x * 90, ctx.currentTime, 0.02), stop: () => osc.stop() };
     } },
   chip:  { n: 'WIEWIÓRKA', w: 1, d: 'Wyższy głos. Intensywność = o ile wyżej.', build: (x) => pitchFx(1.2 + x * 0.8, false) },
-  demon: { n: 'DEMON', w: 1, d: 'Niski, groźny głos. Intensywność = o ile niżej.', build: (x) => pitchFx(0.85 - x * 0.35, true) },
+  ghost: { n: 'DUCH', w: 1, d: 'Upiorny, rozmyty głos: podwójny lekko rozstrojony, drżący, z długim pogłosem i echem. Intensywność = jak bardzo upiorny.', build: (x) => {
+      const i = ctx.createGain(), o = ctx.createGain();
+      const p1 = new AudioWorkletNode(ctx, 'pitch-shifter', { outputChannelCount: [1] }), p2 = new AudioWorkletNode(ctx, 'pitch-shifter', { outputChannelCount: [1] });
+      p1.parameters.get('ratio').value = 0.93; p2.parameters.get('ratio').value = 1.07;
+      const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 350;
+      const air = ctx.createBiquadFilter(); air.type = 'peaking'; air.frequency.value = 4000; air.gain.value = 6;
+      const trem = ctx.createGain(); trem.gain.value = 0.6;
+      const lfo = ctx.createOscillator(); lfo.frequency.value = 5.5; const ld = ctx.createGain(); ld.gain.value = 0.15 + x * 0.35; lfo.connect(ld).connect(trem.gain); lfo.start();
+      const conv = ctx.createConvolver(); conv.buffer = ghostIR(); const wet = ctx.createGain(); wet.gain.value = 0.5 + x * 0.9;
+      const dl = ctx.createDelay(1); dl.delayTime.value = 0.33; const fb = ctx.createGain(); fb.gain.value = 0.35;
+      const dlp = ctx.createBiquadFilter(); dlp.type = 'lowpass'; dlp.frequency.value = 2500; const dg = ctx.createGain(); dg.gain.value = 0.4;
+      const dry = ctx.createGain(); dry.gain.value = 0.6 - x * 0.3;
+      i.connect(p1); i.connect(p2); p1.connect(hp); p2.connect(hp); hp.connect(air).connect(trem);
+      trem.connect(dry).connect(o); trem.connect(conv).connect(wet).connect(o);
+      trem.connect(dl); dl.connect(dlp); dlp.connect(fb).connect(dl); dlp.connect(dg).connect(o); dlp.connect(conv);
+      return { i, o, stop: () => lfo.stop(), set: (x) => {
+        const t = ctx.currentTime;
+        ld.gain.setTargetAtTime(0.15 + x * 0.35, t, 0.05); wet.gain.setTargetAtTime(0.5 + x * 0.9, t, 0.05); dry.gain.setTargetAtTime(0.6 - x * 0.3, t, 0.05);
+      } };
+    } },
   echo:  { n: 'ECHO', d: 'Powtórzenia jak w górach. Intensywność = długość wybrzmiewania.', build: (x) => {
       const i = ctx.createGain(), o = ctx.createGain(), d = ctx.createDelay(1), fb = ctx.createGain(), wet = ctx.createGain();
       d.delayTime.value = 0.3; fb.gain.value = 0.2 + x * 0.5; wet.gain.value = 0.7;
@@ -594,6 +675,14 @@ const FX = {
       return { i: hp, o: sh, set: (x) => sh.curve = curve(x) };
     } },
 };
+let GHOST_IR;
+function ghostIR() {
+  if (GHOST_IR) return GHOST_IR;
+  const len = Math.floor(ctx.sampleRate * 4.5);
+  GHOST_IR = ctx.createBuffer(2, len, ctx.sampleRate);
+  for (let c = 0; c < 2; c++) { const a = GHOST_IR.getChannelData(c); for (let k = 0; k < len; k++) a[k] = (Math.random() * 2 - 1) * Math.pow(1 - k / len, 2); }
+  return GHOST_IR;
+}
 function pitchFx(ratio, low) {
   const p = new AudioWorkletNode(ctx, 'pitch-shifter', { outputChannelCount: [1] });
   p.parameters.get('ratio').value = ratio;
@@ -603,6 +692,7 @@ function pitchFx(ratio, low) {
 }
 function buildFx() {
   if (!ctx) return;
+  if (!FX[fxKey]) fxKey = 'none';
   if (FX[fxKey]?.w && !workletOK) fxKey = 'none';
   fxIn.disconnect();
   if (fx) { try { fx.o.disconnect(); fx.stop?.(); } catch {} }
@@ -618,11 +708,12 @@ function setFx(k) {
 function renderFx() {
   const html = Object.entries(FX).map(([k, f], i) =>
     `<button class="fx${k === fxKey ? ' act' : ''}${f.w && ctx && !workletOK ? ' dis' : ''}" data-fx="${k}"><span class="c">FX-${String(i).padStart(2, '0')}</span><span class="n">${f.n}</span></button>`).join('');
-  $('fxQuick').innerHTML = html; $('fxFull').innerHTML = html;
+  $('fxQuick').innerHTML = html; $('fxFull').innerHTML = html; $('fxRec').innerHTML = html;
   $('rdFx').textContent = FX[fxKey].n;
   $('fxDesc').textContent = FX[fxKey].d;
 }
-['fxQuick', 'fxFull'].forEach(id => $(id).addEventListener('click', e => { const b = e.target.closest('.fx'); if (b) setFx(b.dataset.fx); }));
+['fxQuick', 'fxFull', 'fxRec'].forEach(id => $(id).addEventListener('click', e => { const b = e.target.closest('.fx'); if (b) setFx(b.dataset.fx); }));
+if (!FX[fxKey]) fxKey = 'none';
 $('fxAmt').value = fxAmt; $('fxAmtV').textContent = Math.round(fxAmt * 100) + '%';
 $('fxAmt').oninput = (e) => { fxAmt = +e.target.value; $('fxAmtV').textContent = Math.round(fxAmt * 100) + '%'; store.set('fxAmt', fxAmt); fx?.set?.(fxAmt); };
 renderFx();
@@ -931,7 +1022,7 @@ function stop(id, fade) {
   try { p.src.stop(t + (fade ? 0.4 : 0.08)); } catch {}
   updatePad(id);
 }
-function stopAll() { [...playing.keys()].forEach(id => stop(id, true)); abortCountdown(); rxStopPlayback(); if ($('latch').checked) setLive(false); log('STOP WSZYSTKO'); }
+function stopAll() { [...playing.keys()].forEach(id => stop(id, true)); abortCountdown(); rxStopPlayback(); hauntStop(); recStop(true); if ($('latch').checked) setLive(false); log('STOP WSZYSTKO'); }
 
 function padHTML(s, i, mini) {
   return `<button class="pad" data-id="${s.id}" style="--c:${s.color}"><div class="prog"></div><span class="nm"></span>
@@ -1030,14 +1121,15 @@ function rxRecord(on) {
   clearTimeout(rxStopTimer);
   if (on) {
     rxStopPlayback();
-    rxChunks = [];
-    tapNode.port.postMessage(true);
+    rxChunks = []; rxCollect = true;
+    tapUse('rx', true);
     ensureRx();
   } else {
     // ogon 250 ms, żeby nie uciąć końcówki echa/pogłosu
     rxStopTimer = setTimeout(() => {
-      tapNode.port.postMessage(false);
+      tapUse('rx', false);
       setTimeout(() => {
+        rxCollect = false;
         const len = rxChunks.reduce((a, c) => a + c.length, 0);
         if (len < ctx.sampleRate * 0.2) return;
         const buf = new AudioBuffer({ length: len, sampleRate: ctx.sampleRate, numberOfChannels: 1 });
@@ -1115,7 +1207,7 @@ const G = (v) => { const g = ctx.createGain(); g.gain.value = v; return g; };
 function O(type, f, t, dur) { const o = ctx.createOscillator(); o.type = type; o.frequency.setValueAtTime(f, t); o.start(t); o.stop(t + dur + 0.05); bus.nodes.push(o); return o; }
 function N(t, dur, brown) { const n = ctx.createBufferSource(); n.buffer = brown ? BROWN : WHITE; n.loop = true; n.loopStart = Math.random(); n.start(t, Math.random() * 2); n.stop(t + dur + 0.05); bus.nodes.push(n); return n; }
 function F(type, f, q = 0.7, t, f2, dur) { const b = ctx.createBiquadFilter(); b.type = type; b.Q.value = q; b.frequency.setValueAtTime(f, t ?? 0); if (f2) b.frequency.exponentialRampToValueAtTime(f2, t + dur); return b; }
-function E(t, a, hold, r, peak = 1) { const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.setValueAtTime(peak, t + a + hold); g.gain.exponentialRampToValueAtTime(0.0001, t + a + hold + r); return g; }
+function E(t, a, hold, r, peak = 1) { hold = Math.max(0, hold); const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.setValueAtTime(peak, t + a + hold); g.gain.exponentialRampToValueAtTime(0.0001, t + a + hold + r); return g; }
 function D(k) { const s = ctx.createWaveShaper(), c = new Float32Array(2048); for (let i = 0; i < 2048; i++) { const x = i / 1023.5 - 1; c[i] = Math.tanh(x * k) / Math.tanh(k); } s.curve = c; s.oversample = '2x'; return s; }
 function OUT(node, dry = 1, wet = 0) { if (dry) node.connect(G(dry)).connect(bus.pre); if (wet) node.connect(G(wet)).connect(bus.verb); }
 const chain = (...n) => { for (let i = 0; i < n.length - 1; i++) n[i].connect(n[i + 1]); return n[n.length - 1]; };
@@ -1373,9 +1465,273 @@ function abortCountdown() {
 $('cdGo').onclick = startCountdown;
 $('cdPrev').onclick = previewFinal;
 
+// ---------- ODGŁOSY GROZY (syntezowane, bez plików) ----------
+const SPOOKS = {
+  door: { n: 'SKRZYPIENIE DRZWI', f: (t) => {
+    // drgania cierne: rzadki ciąg impulsów pobudza rezonanse drewna
+    const dur = rnd(1.6, 2.8), o = O('sawtooth', 18, t, dur);
+    for (let tt = t; tt < t + dur;) { tt += rnd(0.08, 0.3); o.frequency.linearRampToValueAtTime(rnd(14, 60), tt); }
+    const sum = G(1);
+    [[420, 12, 1], [980, 14, 0.7], [1900, 16, 0.5], [3100, 18, 0.3]].forEach(([f, q, g]) => o.connect(F('bandpass', f * rnd(0.9, 1.1), q, t)).connect(G(g * 4)).connect(sum));
+    OUT(chain(sum, E(t, 0.15, dur - 0.4, 0.25, 0.6)), 1, 0.5);
+    return dur + 0.5;
+  } },
+  steps: { n: 'KROKI', f: (t) => {
+    const n = Math.floor(rnd(4, 8)), gap = rnd(0.45, 0.7), closer = Math.random() < 0.6;
+    for (let k = 0; k < n; k++) {
+      const tt = t + k * gap + rnd(-0.03, 0.03), v = closer ? 0.3 + 0.7 * k / n : 1 - 0.7 * k / n;
+      OUT(chain(N(tt, 0.15, true), F('lowpass', 260, 1, tt), E(tt, 0.004, 0.03, 0.12, 1.4 * v)), 1, 0.35);
+      const th = O('sine', 90, tt, 0.15); th.frequency.exponentialRampToValueAtTime(50, tt + 0.1);
+      OUT(chain(th, E(tt, 0.003, 0.02, 0.1, 0.7 * v)), 1, 0.2);
+      OUT(chain(N(tt + 0.02, 0.03), F('bandpass', 2500, 2, tt), E(tt + 0.02, 0.001, 0.005, 0.02, 0.15 * v)), 1, 0.3);
+    }
+    return n * gap + 0.5;
+  } },
+  knock: { n: 'PUKANIE', f: (t) => {
+    const n = Math.random() < 0.5 ? 3 : 4, gap = rnd(0.22, 0.35);
+    for (let k = 0; k < n; k++) {
+      const tt = t + k * gap;
+      OUT(chain(N(tt, 0.08, true), F('lowpass', 500, 1, tt), E(tt, 0.001, 0.01, 0.07, 1.3)), 1, 0.4);
+      OUT(chain(O('sine', rnd(160, 200), tt, 0.1), E(tt, 0.001, 0.01, 0.08, 0.6)), 1, 0.3);
+    }
+    return n * gap + 0.6;
+  } },
+  whisper: { n: 'SZEPT', f: (t) => {
+    // sylaby z szumu przez wędrujące formanty
+    const end = t + rnd(1.8, 3);
+    for (let tt = t; tt < end;) {
+      const d = rnd(0.12, 0.32), src = N(tt, d + 0.1), sum = G(1);
+      [[rnd(500, 900), 8], [rnd(1100, 2200), 10], [rnd(2500, 3500), 12]].forEach(([f, q]) => {
+        const b = F('bandpass', f, q, tt); b.frequency.linearRampToValueAtTime(f * rnd(0.7, 1.3), tt + d);
+        src.connect(b).connect(G(3)).connect(sum);
+      });
+      src.connect(F('highpass', 4000, 0.7, tt)).connect(G(0.3)).connect(sum);
+      OUT(chain(sum, E(tt, 0.03, d * 0.5, d * 0.5, rnd(0.25, 0.5))), 0.6, 0.8);
+      tt += d + (Math.random() < 0.25 ? rnd(0.15, 0.4) : rnd(0.02, 0.06));
+    }
+    return end - t + 1;
+  } },
+  breath: { n: 'ODDECH', f: (t) => {
+    const cyc = rnd(1.6, 2.2);
+    for (let k = 0; k < 2; k++) {
+      const tt = t + k * cyc;
+      OUT(chain(N(tt, cyc), F('bandpass', rnd(700, 1000), 1.2, tt), E(tt, 0.5, 0.15, 0.5, 0.6)), 1, 0.3);
+      const t2 = tt + cyc * 0.55;
+      OUT(chain(N(t2, cyc * 0.45), F('bandpass', rnd(500, 800), 1, t2), E(t2, 0.15, 0.1, 0.45, 0.45)), 1, 0.3);
+    }
+    return 2 * cyc + 0.5;
+  } },
+  moan: { n: 'JĘK DUCHA', f: (t) => {
+    const dur = rnd(2.5, 3.8), f0 = rnd(170, 240), o = O('triangle', f0, t, dur);
+    o.frequency.linearRampToValueAtTime(f0 * 1.25, t + dur * 0.35); o.frequency.linearRampToValueAtTime(f0 * 0.75, t + dur);
+    const v = O('sine', 4.5, t, dur); v.connect(G(f0 * 0.03)).connect(o.frequency);
+    const sum = G(1);
+    [[350, 5, 1], [700, 6, 0.4]].forEach(([f, q, g]) => o.connect(F('bandpass', f, q, t)).connect(G(g * 3)).connect(sum));
+    o.connect(G(0.3)).connect(sum);
+    OUT(chain(sum, E(t, 0.6, dur - 1.4, 0.8, 0.5)), 0.5, 1.2);
+    return dur + 1.5;
+  } },
+  chains: { n: 'ŁAŃCUCHY', f: (t) => {
+    const dur = rnd(1.2, 2.2), hits = Math.floor(rnd(14, 26));
+    for (let k = 0; k < hits; k++) {
+      const tt = t + Math.random() ** 0.8 * dur, base = rnd(1800, 3200);
+      [1, 1.47, 2.09, 2.76].forEach((r, j) => OUT(chain(O('sine', base * r, tt, 0.25), E(tt, 0.001, 0.005, rnd(0.08, 0.2), 0.12 / (j + 1))), 1, 0.4));
+    }
+    OUT(chain(N(t, dur), F('bandpass', 3000, 1.5, t), E(t, 0.2, dur - 0.4, 0.3, 0.06)), 1, 0.4);
+    return dur + 0.6;
+  } },
+  scratch: { n: 'DRAPANIE', f: (t) => {
+    let tt = t;
+    for (let k = 0, n = Math.floor(rnd(3, 6)); k < n; k++) {
+      const d = rnd(0.25, 0.5), am = G(0.5), lfo = O('square', rnd(25, 45), tt, d);
+      lfo.connect(G(0.5)).connect(am.gain);
+      OUT(chain(N(tt, d), F('bandpass', rnd(2500, 4500), 1.5, tt), am, E(tt, 0.02, d - 0.08, 0.06, 0.6)), 1, 0.3);
+      tt += d + rnd(0.1, 0.35);
+    }
+    return tt - t + 0.5;
+  } },
+  wind: { n: 'WYCIE WIATRU', f: (t) => {
+    const dur = rnd(4, 6), b = F('bandpass', 400, 8, t);
+    for (let tt = t; tt < t + dur;) { tt += rnd(0.6, 1.4); b.frequency.linearRampToValueAtTime(rnd(250, 1100), tt); }
+    OUT(chain(N(t, dur), b, G(4), E(t, 1, dur - 2, 1, 0.5)), 1, 0.5);
+    return dur + 0.5;
+  } },
+  musicbox: { n: 'POZYTYWKA', f: (t) => {
+    // melodia w molu, nakręcana pozytywka zwalnia i rozstraja się
+    const notes = [69, 72, 76, 81, 80, 76, 72, 71, 69, 72, 76, 79, 77, 76, 72, 69];
+    let tt = t, step = 0.32;
+    notes.forEach((m, k) => {
+      const f = 440 * 2 ** ((m - 69) / 12) * (1 - k * 0.0015);
+      [[1, 0.25], [2.76, 0.06], [5.4, 0.03]].forEach(([r, g]) => OUT(chain(O('sine', f * r, tt, 1.4), E(tt, 0.002, 0.01, 1.2, g)), 1, 0.5));
+      tt += step; step *= 1.035;
+    });
+    return tt - t + 1.3;
+  } },
+};
+
+// ---------- NAWIEDZONY DOM ----------
+let spookBus = null;
+const haunt = { on: false, timer: 0, next: 0, count: 0, start: 0, bus: null, last: '' };
+function withBus(b, fn) { const prev = bus; bus = b; try { return fn(); } finally { bus = prev; } }
+function hauntVolume() { return +$('hVol').value; }
+function getSpookBus() {
+  if (haunt.bus) return haunt.bus;
+  if (!spookBus) spookBus = makeBus();
+  spookBus.out.gain.value = hauntVolume();
+  return spookBus;
+}
+// k: klucz odgłosu albo 'pad:<id>'; zwraca czas trwania
+async function playSpook(k, at, b = getSpookBus()) {
+  at ??= ctx.currentTime + 0.03;
+  if (k.startsWith('pad:')) {
+    const s = sounds.find(x => x.id === k.slice(4)); if (!s) return 0;
+    try {
+      const buf = await getBuffer(s), src = ctx.createBufferSource();
+      src.buffer = buf; src.connect(b.pre); src.start(Math.max(at, ctx.currentTime)); b.nodes.push(src);
+      return buf.duration;
+    } catch { return 0; }
+  }
+  return withBus(b, () => SPOOKS[k].f(at));
+}
+const spookName = (k) => k.startsWith('pad:') ? (sounds.find(x => x.id === k.slice(4))?.name || 'SFX').toUpperCase() : SPOOKS[k].n;
+
+function renderSpooks() {
+  const sel = store.get('hSel', Object.keys(SPOOKS));
+  $('spooks').innerHTML = Object.entries(SPOOKS).map(([k, s], i) =>
+    `<div class="spook" data-k="${k}"><button class="sp-play"><span class="c">GR-${String(i + 1).padStart(2, '0')}</span><span class="n">▶ ${s.n}</span></button>
+     <label class="sp-chk" title="W losowaniu"><input type="checkbox" data-k="${k}"${sel.includes(k) ? ' checked' : ''}><i></i></label></div>`).join('');
+}
+renderSpooks();
+$('spooks').addEventListener('click', async (e) => {
+  const sp = e.target.closest('.spook'); if (!sp || e.target.closest('.sp-chk')) return;
+  await unlock(); playSpook(sp.dataset.k); log(`GROZA: ${SPOOKS[sp.dataset.k].n}`);
+});
+$('spooks').addEventListener('change', () => store.set('hSel', [...$('spooks').querySelectorAll('input:checked')].map(i => i.dataset.k)));
+
+[['hMin', 20], ['hMax', 90], ['hVol', 1]].forEach(([id, d]) => $(id).value = store.get(id, d));
+$('hEsc').checked = store.get('hEsc', true); $('hMine').checked = store.get('hMine', false);
+function hauntLabels() {
+  $('hMinV').textContent = $('hMin').value + ' s'; $('hMaxV').textContent = $('hMax').value + ' s';
+  $('hVolV').textContent = Math.round($('hVol').value * 100) + '%';
+}
+hauntLabels();
+['hMin', 'hMax', 'hVol'].forEach(id => $(id).oninput = () => {
+  hauntLabels(); store.set(id, +$(id).value);
+  if (id === 'hVol') [haunt.bus, spookBus].forEach(b => b && b.out.gain.setTargetAtTime(hauntVolume(), ctx.currentTime, 0.05));
+});
+$('hEsc').onchange = () => store.set('hEsc', $('hEsc').checked);
+$('hMine').onchange = () => store.set('hMine', $('hMine').checked);
+
+function hauntPool() {
+  const pool = [...$('spooks').querySelectorAll('input:checked')].map(i => i.dataset.k);
+  if ($('hMine').checked) sounds.forEach(s => pool.push('pad:' + s.id));
+  return pool;
+}
+function hauntDelay() {
+  const lo = +$('hMin').value, hi = Math.max(lo, +$('hMax').value);
+  const mins = (performance.now() - haunt.start) / 60000;
+  const f = $('hEsc').checked ? Math.max(0.3, 1 - mins / 20) : 1;   // po 20 min ~3× częściej
+  return rnd(lo, hi) * f;
+}
+async function hauntStep(first) {
+  if (!haunt.on) return;
+  const pool = hauntPool();
+  if (!pool.length) { log('NAWIEDZANIE: brak odgłosów w losowaniu'); hauntStop(); return; }
+  let k = pool[Math.floor(Math.random() * pool.length)];
+  if (pool.length > 1 && k === haunt.last) k = pool[(pool.indexOf(k) + 1) % pool.length];
+  haunt.last = k;
+  if (!first) {
+    haunt.count++;
+    $('hntCount').textContent = haunt.count; $('hntLast').textContent = spookName(k);
+    $('hntTile').classList.add('hit'); setTimeout(() => $('hntTile').classList.remove('hit'), 900);
+    log(`NAWIEDZANIE #${haunt.count}: ${spookName(k)}`);
+    const dur = await playSpook(k, ctx.currentTime + 0.03, haunt.bus);
+    haunt.bus.nodes = haunt.bus.nodes.slice(-400);
+    const d = hauntDelay() + dur;
+    haunt.next = performance.now() + d * 1000;
+    haunt.timer = setTimeout(() => hauntStep(), d * 1000);
+  } else {
+    const d = Math.min(5, +$('hMin').value);
+    haunt.next = performance.now() + d * 1000;
+    haunt.timer = setTimeout(() => hauntStep(), d * 1000);
+  }
+}
+async function hauntStart() {
+  await unlock();
+  haunt.on = true; haunt.count = 0; haunt.start = performance.now(); haunt.last = '';
+  haunt.bus = makeBus(); haunt.bus.out.gain.value = hauntVolume();
+  $('hntTile').classList.add('run'); $('hntGo').textContent = '■ Zatrzymaj nawiedzanie'; setLed('ledHnt', 'red');
+  $('hntCount').textContent = '0'; $('hntLast').textContent = '--';
+  log('NAWIEDZANIE START');
+  hauntStep(true);
+}
+function hauntStop() {
+  if (!haunt.on) return;
+  haunt.on = false; clearTimeout(haunt.timer);
+  const b = haunt.bus; haunt.bus = null;
+  if (b) { const t = ctx.currentTime; b.out.gain.setTargetAtTime(0, t, 0.05); b.nodes.forEach(n => { try { n.stop(t + 0.3); } catch {} }); setTimeout(() => b.out.disconnect(), 500); }
+  $('hntTile').classList.remove('run'); $('hntGo').textContent = '☠ Uruchom nawiedzanie'; setLed('ledHnt', '');
+  $('hntDisp').textContent = 'WYŁ';
+  log('NAWIEDZANIE STOP');
+}
+$('hntGo').onclick = () => haunt.on ? hauntStop() : hauntStart();
+setInterval(() => {
+  if (!haunt.on) return;
+  const s = Math.max(0, Math.round((haunt.next - performance.now()) / 1000));
+  const txt = String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+  $('hntDisp').textContent = txt; $('hntNext').textContent = 'za ' + txt;
+}, 250);
+
+// ---------- NAGRYWANIE DO PADU ----------
+// nagrywa mikrofon po efekcie (nie leci na głośnik), zapisuje jako WAV w soundboardzie
+const rec = { on: false, t0: 0, timer: 0, ui: 0 };
+let recChunks = [], recCollect = false;
+function wavBlob(chunks, sr) {
+  const len = chunks.reduce((a, c) => a + c.length, 0), buf = new ArrayBuffer(44 + len * 2), v = new DataView(buf);
+  const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + len * 2, true); w(8, 'WAVE'); w(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, sr, true);
+  v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, len * 2, true);
+  let pk = 0; for (const c of chunks) for (const x of c) pk = Math.max(pk, Math.abs(x));
+  const g = pk > 0 ? Math.min(6, 0.9 / pk) : 1;   // normalizacja
+  let o = 44;
+  for (const c of chunks) for (const x of c) { v.setInt16(o, Math.max(-1, Math.min(1, x * g)) * 32767, true); o += 2; }
+  return new Blob([buf], { type: 'audio/wav' });
+}
+async function recStart() {
+  if (!micStream) { try { await startMic(); } catch (e) { log('BRAK DOSTĘPU DO MIKROFONU: ' + e.message); return; } }
+  if (!tapNode) { log('NAGRYWANIE: niedostępne w tej przeglądarce'); return; }
+  recChunks = []; recCollect = true; tapUse('rec', true);
+  rec.on = true; rec.t0 = performance.now();
+  $('recBtn').textContent = '■ ZAPISZ'; $('recTile').classList.add('run'); setLed('ledRec', 'red');
+  rec.ui = setInterval(() => { $('recTime').textContent = ((performance.now() - rec.t0) / 1000).toFixed(1).padStart(4, '0') + ' s'; }, 100);
+  rec.timer = setTimeout(recStop, 30000);
+  log(`NAGRYWANIE · EFEKT ${FX[fxKey].n}`);
+}
+function recStop(cancel) {
+  if (!rec.on) return;
+  rec.on = false; clearTimeout(rec.timer); clearInterval(rec.ui);
+  tapUse('rec', false);
+  $('recBtn').textContent = '● NAGRAJ'; $('recTile').classList.remove('run'); setLed('ledRec', '');
+  setTimeout(() => {
+    recCollect = false;
+    const len = recChunks.reduce((a, c) => a + c.length, 0);
+    if (cancel || len < ctx.sampleRate * 0.3) { $('recTime').textContent = '00.0 s'; if (!cancel) log('NAGRYWANIE: za krótkie'); return; }
+    const n = sounds.filter(s => /^NAGRANIE \d+/.test(s.name)).length + 1;
+    const name = prompt('Nazwa nagrania:', `NAGRANIE ${n}${fxKey !== 'none' ? ' · ' + FX[fxKey].n : ''}`);
+    if (name === null) { log('NAGRYWANIE: odrzucone'); return; }
+    const s = { id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()), name: name || `NAGRANIE ${n}`,
+      blob: wavBlob(recChunks, ctx.sampleRate), color: COLORS[sounds.length % COLORS.length], loop: false, order: Date.now() };
+    recChunks = [];
+    sounds.push(s); dbPut(s); render();
+    log(`SFX: zapisano „${s.name}” (${(len / ctx.sampleRate).toFixed(1)} s)`);
+  }, 120);
+}
+$('recBtn').onclick = () => rec.on ? recStop() : recStart();
+
 // ---------- KLAWIATURA ----------
 const typing = (e) => ['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName) && !['checkbox', 'range', 'file'].includes(e.target.type);
-const SCREENS = { KeyQ: 'tx', KeyW: 'sfx', KeyE: 'vox', KeyR: 'link', KeyT: 'sys' };
+const SCREENS = { KeyQ: 'tx', KeyW: 'sfx', KeyE: 'hnt', KeyR: 'vox', KeyT: 'link', KeyY: 'sys' };
 document.addEventListener('keydown', (e) => {
   if (typing(e) || e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) pttDown(); }
