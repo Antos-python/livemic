@@ -1,0 +1,28 @@
+# Most kamer eufy dla Live MIC.
+# start.command kopiuje ten plik jako go2rtc.yaml — tam wpisz swoje dane (go2rtc.yaml nie trafia do repozytorium).
+#
+# Adres RTSP znajdziesz w aplikacji eufy: kamera → Ustawienia → RTSP (przy HomeBase: NAS / RTSP).
+# Zwykle wygląda tak: rtsp://LOGIN:HASLO@IP_KAMERY:554/live0
+
+api:
+  listen: ":1984"
+  origin: "*"          # pozwala aplikacji Live MIC (GitHub Pages) połączyć się z tym mostem
+
+rtsp:
+  listen: ""           # nie udostępniaj dalej RTSP
+
+webrtc:
+  listen: ":8555"
+  candidates:
+    - 127.0.0.1:8555
+
+streams:
+  # nazwa_kamery:
+  #   - adres RTSP z aplikacji eufy (obraz)
+  #   - ffmpeg zamienia dźwięk AAC z kamery na Opus, który rozumie przeglądarka
+  kamera_1:
+    - rtsp://LOGIN:HASLO@192.168.1.50:554/live0
+    - "ffmpeg:kamera_1#audio=opus"
+  kamera_2:
+    - rtsp://LOGIN:HASLO@192.168.1.51:554/live0
+    - "ffmpeg:kamera_2#audio=opus"

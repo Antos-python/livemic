@@ -239,6 +239,36 @@
   .rec-time { font-size: 26px; font-weight: 800; color: var(--amber); font-variant-numeric: tabular-nums; letter-spacing: 2px; min-width: 110px; }
   #recTile.run .rec-time { color: var(--red); animation: blink 1s steps(2) infinite; }
 
+  /* ---------- KAMERY ---------- */
+  .btn.sm { padding: 4px 10px; font-size: 10px; }
+  #s-tx .tiles { grid-auto-flow: dense; }
+  #camTile { grid-column: 1 / -1; }
+  .cams { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  @media (max-width: 620px) { .cams { grid-template-columns: 1fr; } }
+  .cam { position: relative; aspect-ratio: 16 / 9; background: #050805; border: 1px solid var(--line2); overflow: hidden; }
+  .cam video, .cam .snap { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .cam:fullscreen video, .cam:fullscreen .snap { object-fit: contain; }
+  .cam .cam-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--dim); letter-spacing: 2px; font-size: 11px;
+    background: repeating-linear-gradient(0deg, rgba(109,255,138,.04) 0 2px, transparent 2px 4px); }
+  .cam.on .cam-empty { display: none; }
+  .cam::after { content: ""; position: absolute; inset: 8px; pointer-events: none;
+    background: linear-gradient(var(--g2), var(--g2)) 0 0 / 14px 2px, linear-gradient(var(--g2), var(--g2)) 0 0 / 2px 14px,
+      linear-gradient(var(--g2), var(--g2)) 100% 0 / 14px 2px, linear-gradient(var(--g2), var(--g2)) 100% 0 / 2px 14px,
+      linear-gradient(var(--g2), var(--g2)) 0 100% / 14px 2px, linear-gradient(var(--g2), var(--g2)) 0 100% / 2px 14px,
+      linear-gradient(var(--g2), var(--g2)) 100% 100% / 14px 2px, linear-gradient(var(--g2), var(--g2)) 100% 100% / 2px 14px;
+    background-repeat: no-repeat; }
+  .cam-hud { position: absolute; top: 0; left: 0; right: 0; display: flex; gap: 8px; align-items: center; padding: 10px 14px; font-size: 10px; letter-spacing: 1.5px;
+    background: linear-gradient(rgba(0,0,0,.65), transparent); text-transform: uppercase; }
+  .cam-name { color: var(--g); font-weight: 700; }
+  .cam-res { color: var(--dim); }
+  .cam-st { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+  .cam-bar { position: absolute; bottom: 0; left: 0; right: 0; display: flex; gap: 8px; align-items: center; padding: 8px 14px;
+    background: linear-gradient(transparent, rgba(0,0,0,.7)); opacity: .85; }
+  .cam-bar button { all: unset; cursor: pointer; font-size: 14px; }
+  .cam-bar input { flex: 1; max-width: 140px; }
+  input.txt { background: #0a0f0a; color: var(--text); border: 1px solid var(--line2); padding: 8px; font: 12px var(--mono); width: 100%; border-radius: 0; }
+  code { color: var(--g); font: 11px var(--mono); }
+
   /* ---------- TELEFON: menu na dole ---------- */
   @media (max-width: 760px) {
     .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto auto; }
@@ -276,7 +306,7 @@
     <button data-s="link"><span class="k">05</span><span class="t">LINK</span><span class="s">Głośnik</span></button>
     <button data-s="sys"><span class="k">06</span><span class="t">SYS</span><span class="s">System</span></button>
     <div class="grow"></div>
-    <div class="ver">BUILD 2.2 // PL</div>
+    <div class="ver">BUILD 2.3 // PL</div>
   </nav>
 
   <main>
@@ -292,6 +322,24 @@
           <div style="width:100%">
             <div class="meter" id="meter"></div>
             <div class="scale"><span>-60</span><span>-40</span><span>-20</span><span>0 dB</span></div>
+          </div>
+        </div>
+
+        <div class="tile" id="camTile">
+          <div class="th"><span class="id">▣ CAM-08</span><span>Kamery eufy</span><button class="btn sm" id="camConn">⟳ Połącz</button></div>
+          <div class="cams">
+            <div class="cam" id="cam0">
+              <video playsinline autoplay muted></video><img class="snap" alt="" hidden>
+              <div class="cam-empty">// BRAK SYGNAŁU //</div>
+              <div class="cam-hud"><span class="cam-name">KAM-A</span><span class="cam-res"></span><span class="cam-st"><i class="led"></i><b>OFF</b></span></div>
+              <div class="cam-bar"><button class="cam-mute" title="Dźwięk">🔊</button><input type="range" class="cam-vol" min="0" max="1" step="0.05" value="0.8"><button class="cam-fs" title="Pełny ekran">⛶</button></div>
+            </div>
+            <div class="cam" id="cam1">
+              <video playsinline autoplay muted></video><img class="snap" alt="" hidden>
+              <div class="cam-empty">// BRAK SYGNAŁU //</div>
+              <div class="cam-hud"><span class="cam-name">KAM-B</span><span class="cam-res"></span><span class="cam-st"><i class="led"></i><b>OFF</b></span></div>
+              <div class="cam-bar"><button class="cam-mute" title="Dźwięk">🔊</button><input type="range" class="cam-vol" min="0" max="1" step="0.05" value="0.8"><button class="cam-fs" title="Pełny ekran">⛶</button></div>
+            </div>
           </div>
         </div>
 
@@ -472,6 +520,26 @@
         </div>
 
         <div class="tile span2">
+          <div class="th"><span class="id">▣ LNK-E</span><span>Kamery eufy · most go2rtc</span></div>
+          <div class="field"><label>Adres go2rtc</label><input type="text" id="camUrl" class="txt" value="http://localhost:1984" spellcheck="false"></div>
+          <div class="btns" style="margin-top:8px"><button class="btn pri" id="camList">⌖ Pobierz listę kamer</button></div>
+          <div class="muted" id="camLinkInfo" style="margin-top:6px"></div>
+          <div class="cd-opts" style="margin-top:10px">
+            <div class="field"><label>Kamera A</label><select id="camA"></select></div>
+            <div class="field"><label>Kamera B</label><select id="camB"></select></div>
+          </div>
+          <div class="field" id="camSinkBox" style="margin-top:8px"><label>Dźwięk kamer gra na</label><select id="camSink"><option value="">Domyślne systemowe</option></select></div>
+          <label class="sw" style="margin-top:6px">Auto-start po wejściu w TX<input type="checkbox" id="camAuto" checked><i></i></label>
+          <label class="sw">Ścisz kamery podczas nadawania<input type="checkbox" id="camDuck" checked><i></i></label>
+          <ol class="steps" style="margin-top:10px">
+            <li>Aplikacja eufy → kamera → Ustawienia → <b>RTSP</b> (lub NAS/RTSP przy HomeBase) → włącz, ustaw login i hasło, zapisz adres <code>rtsp://…</code>.</li>
+            <li>W folderze <b>kamery/</b> wpisz adresy do <b>go2rtc.yaml</b> i uruchom <b>start.command</b>.</li>
+            <li>Kliknij <b>Pobierz listę kamer</b>, wybierz A i B. Chrome zapyta o dostęp do sieci lokalnej — zezwól.</li>
+          </ol>
+          <p class="note" style="margin:10px 0 0">Portal eufy (mysecurity.eufylife.com) nie ma publicznego API, więc obraz idzie bezpośrednio z kamer przez RTSP. Hasła zostają na Twoim komputerze. Działa na komputerze z go2rtc; iPhone nie połączy się z nim z adresu HTTPS.</p>
+        </div>
+
+        <div class="tile span2">
           <div class="th"><span class="id">▣ LNK-C</span><span>Procedura</span></div>
           <ol class="steps" id="procDesktop">
             <li>Włącz KALLSUP i połącz go w ustawieniach Bluetooth komputera.</li>
@@ -548,6 +616,7 @@ function show(s) {
   document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('act', b.dataset.s === s));
   document.querySelectorAll('.screen').forEach(x => x.classList.toggle('act', x.id === 's-' + s));
   store.set('screen', s);
+  if (s === 'tx') setTimeout(() => camAutoStart(), 0);
 }
 $('nav').addEventListener('click', e => { const b = e.target.closest('button'); if (b) show(b.dataset.s); });
 show(store.get('screen', 'tx'));
@@ -798,6 +867,10 @@ async function listDevices() {
   fill($('micSel'), 'audioinput', 'Domyślny');
   fill($('rxSel'), 'audiooutput', 'Domyślne systemowe');
   pickRxSpeaker();
+  fill($('camSink'), 'audiooutput', 'Domyślne systemowe');
+  { const want = store.get('camSink', null), sel = $('camSink');
+    if (want != null && [...sel.options].some(o => o.value === want)) sel.value = want;
+    else if (!sel.value) sel.value = $('rxSel').value; }
   updateStatus();
 }
 async function applySink() {
@@ -928,6 +1001,7 @@ function setLive(on) {
   $('liveTag').classList.toggle('on', on);
   $('stTx').textContent = on ? 'LIVE' : 'STBY'; setLed('ledTx', on ? 'red' : '');
   rxRecord(on);
+  camDuck(on);
 }
 async function pttDown() {
   if (!micStream) { try { await startMic(); } catch (e) { log('BRAK DOSTĘPU DO MIKROFONU: ' + e.message); } return; }
@@ -1728,6 +1802,155 @@ function recStop(cancel) {
   }, 120);
 }
 $('recBtn').onclick = () => rec.on ? recStop() : recStart();
+
+// ---------- KAMERY EUFY (RTSP → go2rtc → WebRTC) ----------
+// portal eufy nie ma API; obraz i dźwięk bierzemy z RTSP kamer przez lokalny most go2rtc
+const cams = [0, 1].map(i => ({ i, el: $('cam' + i), pc: null, src: '', snapT: 0, retryT: 0, muted: store.get('camMute' + i, false), vol: store.get('camVol' + i, 0.8) }));
+let camWanted = false, camDucked = false;
+const camBase = () => ($('camUrl').value.trim() || 'http://localhost:1984').replace(/\/+$/, '');
+$('camUrl').value = store.get('camUrl', 'http://localhost:1984');
+$('camAuto').checked = store.get('camAuto', true);
+$('camDuck').checked = store.get('camDuck', true);
+$('camUrl').onchange = () => store.set('camUrl', $('camUrl').value.trim());
+$('camAuto').onchange = () => store.set('camAuto', $('camAuto').checked);
+$('camDuck').onchange = () => { store.set('camDuck', $('camDuck').checked); camAudioAll(); };
+if (!canSink) $('camSinkBox').hidden = true;
+
+function camFillSelects(names) {
+  ['camA', 'camB'].forEach((id, i) => {
+    const want = store.get(id, '');
+    $(id).innerHTML = `<option value="">— brak —</option>` + names.map(n => `<option>${n.replace(/</g, '&lt;')}</option>`).join('');
+    $(id).value = names.includes(want) ? want : (names[i] || '');
+  });
+}
+camFillSelects(store.get('camList', []));
+['camA', 'camB'].forEach((id, i) => $(id).onchange = () => { store.set(id, $(id).value); if (camWanted) camConnect(cams[i], $(id).value); });
+
+async function camFetchList() {
+  try {
+    const r = await fetch(camBase() + '/api/streams', { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const names = Object.keys(await r.json());
+    store.set('camList', names); camFillSelects(names);
+    ['camA', 'camB'].forEach(id => store.set(id, $(id).value));
+    $('camLinkInfo').textContent = names.length ? `go2rtc OK · kamery: ${names.join(', ')}` : 'go2rtc działa, ale nie ma kamer w go2rtc.yaml';
+    log(`KAMERY: znaleziono ${names.length}`);
+    return names;
+  } catch (e) {
+    $('camLinkInfo').textContent = `Brak połączenia z ${camBase()} — uruchom go2rtc (folder kamery/start.command).`;
+    log('KAMERY: go2rtc nie odpowiada');
+    return null;
+  }
+}
+$('camList').onclick = camFetchList;
+
+function camHud(c, txt, led) {
+  c.el.querySelector('.cam-st b').textContent = txt;
+  c.el.querySelector('.cam-st i').className = 'led' + (led ? ' ' + led : '');
+}
+function camAudio(c) {
+  const v = c.el.querySelector('video');
+  const userOk = navigator.userActivation ? navigator.userActivation.hasBeenActive : true;
+  v.muted = c.muted || !userOk;
+  v.volume = Math.max(0, Math.min(1, c.vol * (camDucked ? 0.15 : 1)));
+  c.el.querySelector('.cam-mute').textContent = c.muted ? '🔇' : '🔊';
+  c.el.querySelector('.cam-vol').value = c.vol;
+  if (canSink && v.setSinkId && v.sinkId !== $('camSink').value) v.setSinkId($('camSink').value).catch(() => {});
+}
+function camAudioAll() { cams.forEach(camAudio); }
+function camDuck(on) { camDucked = on && $('camDuck').checked; camAudioAll(); }
+$('camSink').onchange = () => { store.set('camSink', $('camSink').value); camAudioAll(); };
+
+function camClose(c) {
+  clearTimeout(c.retryT); clearInterval(c.snapT);
+  if (c.pc) { c.pc.onconnectionstatechange = null; try { c.pc.close(); } catch {} c.pc = null; }
+  const v = c.el.querySelector('video'); v.srcObject = null;
+  c.el.querySelector('.snap').hidden = true;
+  c.el.classList.remove('on');
+}
+function camSnapshot(c) {
+  // awaryjnie: klatki JPEG co 1,5 s (bez dźwięku)
+  const img = c.el.querySelector('.snap'), load = () => img.src = `${camBase()}/api/frame.jpeg?src=${encodeURIComponent(c.src)}&t=${Date.now()}`;
+  img.onload = () => { img.hidden = false; c.el.classList.add('on'); camHud(c, 'KLATKI', 'warn'); };
+  img.onerror = () => { img.hidden = true; c.el.classList.remove('on'); camHud(c, 'BRAK MOSTU', 'red'); };
+  load(); c.snapT = setInterval(load, 1500);
+}
+function iceDone(pc, ms) {
+  return new Promise(res => {
+    if (pc.iceGatheringState === 'complete') return res();
+    const t = setTimeout(res, ms);
+    pc.addEventListener('icegatheringstatechange', () => { if (pc.iceGatheringState === 'complete') { clearTimeout(t); res(); } });
+  });
+}
+async function camConnect(c, src) {
+  camClose(c);
+  c.src = src;
+  c.el.querySelector('.cam-name').textContent = src ? src.toUpperCase() : `KAM-${'AB'[c.i]}`;
+  if (!src) { camHud(c, 'BRAK', ''); return; }
+  camHud(c, 'ŁĄCZENIE', 'warn');
+  const pc = new RTCPeerConnection(); c.pc = pc;
+  pc.addTransceiver('video', { direction: 'recvonly' });
+  pc.addTransceiver('audio', { direction: 'recvonly' });
+  const v = c.el.querySelector('video'), ms = new MediaStream();
+  v.srcObject = ms;
+  pc.ontrack = (e) => { ms.addTrack(e.track); camAudio(c); v.play().catch(() => {}); };
+  pc.onconnectionstatechange = () => {
+    if (c.pc !== pc) return;
+    const s = pc.connectionState;
+    if (s === 'connected') { c.el.classList.add('on'); camHud(c, 'LIVE', 'on'); log(`KAMERA ${src}: obraz na żywo`); }
+    else if (s === 'failed' || s === 'disconnected') { camHud(c, 'ZERWANE', 'red'); camRetry(c); }
+  };
+  try {
+    await pc.setLocalDescription(await pc.createOffer());
+    await iceDone(pc, 1500);
+    const r = await fetch(`${camBase()}/api/webrtc?src=${encodeURIComponent(src)}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/sdp' }, body: pc.localDescription.sdp,
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    if (c.pc !== pc) return;
+    await pc.setRemoteDescription({ type: 'answer', sdp: await r.text() });
+  } catch (e) {
+    if (c.pc !== pc) return;
+    log(`KAMERA ${src}: WebRTC nie działa (${e.message}) — tryb klatek`);
+    pc.close(); c.pc = null;
+    camSnapshot(c);
+    camRetry(c, 30000);
+  }
+}
+function camRetry(c, ms = 6000) {
+  clearTimeout(c.retryT);
+  c.retryT = setTimeout(() => { if (camWanted && c.src) camConnect(c, c.src); }, ms);
+}
+function camStart() {
+  camWanted = true;
+  cams.forEach((c, i) => camConnect(c, [$('camA').value, $('camB').value][i]));
+  $('camConn').textContent = '■ Rozłącz';
+}
+function camStop() {
+  camWanted = false;
+  cams.forEach(c => { camClose(c); camHud(c, 'OFF', ''); });
+  $('camConn').textContent = '⟳ Połącz';
+}
+$('camConn').onclick = () => camWanted ? camStop() : camStart();
+
+cams.forEach(c => {
+  c.el.querySelector('.cam-mute').onclick = () => { c.muted = !c.muted; store.set('camMute' + c.i, c.muted); camAudio(c); };
+  c.el.querySelector('.cam-vol').oninput = (e) => { c.vol = +e.target.value; store.set('camVol' + c.i, c.vol); camAudio(c); };
+  c.el.querySelector('.cam-fs').onclick = () => { const v = c.el; (v.requestFullscreen || v.webkitRequestFullscreen)?.call(v); };
+  c.el.querySelector('video').addEventListener('resize', (e) => {
+    const v = e.target; c.el.querySelector('.cam-res').textContent = v.videoWidth ? `${v.videoWidth}×${v.videoHeight}` : '';
+  });
+  camAudio(c);
+});
+// dźwięk kamer wolno włączyć dopiero po pierwszym dotknięciu strony
+document.addEventListener('pointerdown', () => setTimeout(camAudioAll, 0), { once: true });
+document.addEventListener('keydown', () => setTimeout(camAudioAll, 0), { once: true });
+
+// automatyczny start po wejściu w TX
+function camAutoStart() {
+  if (camWanted || !$('camAuto').checked || !($('camA').value || $('camB').value)) return;
+  camStart();
+}
 
 // ---------- KLAWIATURA ----------
 const typing = (e) => ['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName) && !['checkbox', 'range', 'file'].includes(e.target.type);
