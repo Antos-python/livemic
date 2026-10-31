@@ -316,6 +316,7 @@
     <div class="stat"><i class="led" id="ledLink"></i>LINK <span id="stLink">BRAK</span></div>
     <div class="stat"><i class="led" id="ledMic"></i>MIC <span id="stMic">OFF</span></div>
     <div class="stat"><i class="led" id="ledTx"></i>TX <span id="stTx">STBY</span></div>
+    <div class="stat" title="Zero latency: głośnik nie zasypia"><i class="led" id="ledZl"></i>ZL <span id="stZl">OFF</span></div>
     <div class="stat hide-m">LAT <span id="stLat">--</span></div>
     <div class="stat cdtop" id="cdTop">CD T-10</div>
     <div class="clock" id="clock">--:--:--Z</div>
@@ -329,7 +330,7 @@
     <button data-s="link"><span class="k">05</span><span class="t">LINK</span><span class="s">Głośnik</span></button>
     <button data-s="sys"><span class="k">06</span><span class="t">SYS</span><span class="s">System</span></button>
     <div class="grow"></div>
-    <div class="ver">BUILD 2.5 // PL</div>
+    <div class="ver">BUILD 2.6 // PL</div>
   </nav>
 
   <main>
@@ -413,6 +414,7 @@
           <div class="th"><span class="id">▣ CTL-05</span><span>Sterowanie</span></div>
           <label class="sw">Tryb przełączania<input type="checkbox" id="latch"><i></i></label>
           <label class="sw">Ścisz SFX przy TX<input type="checkbox" id="duck" checked><i></i></label>
+          <label class="sw" title="Niesłyszalny szum podtrzymuje głośnik, żeby nie zasypiał i nie ucinał początku nadawania">Zero latency<input type="checkbox" id="zlOn" checked><i></i></label>
           <div class="field" style="margin-top:8px"><label>Głośność mic <span id="micVolV">120%</span></label><input type="range" id="micVol" min="0" max="3" step="0.05" value="1.2"></div>
         </div>
 
@@ -726,6 +728,7 @@ function ensureCtx() {
 async function unlock() {
   await ensureCtx();
   if (ctx.state !== 'running') { try { await ctx.resume(); } catch {} }
+  zlApply();
   if (navigator.audioSession) { try { navigator.audioSession.type = micStream ? 'play-and-record' : 'playback'; } catch {} }
 }
 
@@ -2207,6 +2210,36 @@ camShow(camWhen() !== 'tx');
 $('bridgeCams').hidden = camMode !== 'bridge'; $('portalBox').hidden = camMode !== 'portal';
 document.querySelectorAll('#camModes button').forEach(b => b.classList.toggle('act', b.dataset.m === camMode));
 
+// ---------- ZERO LATENCY ----------
+// głośniki BT po kilku sekundach ciszy usypiają strumień i budzą się z opóźnieniem (ucięty początek).
+// Stały szum poniżej 120 Hz na ok. -68 dBFS: mały głośnik go nie odtworzy, a kodek BT go nie wyzeruje, więc łącze zostaje aktywne.
+let zl = null;
+$('zlOn').checked = store.get('zlOn', true);
+function zlStart() {
+  if (zl || !ctx || ctx.state !== 'running') return;
+  const len = ctx.sampleRate * 2, buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  const n = ctx.createBufferSource(); n.buffer = buf; n.loop = true;
+  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 120;
+  const g = ctx.createGain(); g.gain.value = 0.008;
+  n.connect(lp).connect(g).connect(master); n.start();
+  zl = { n, g };
+  log('ZERO LATENCY: głośnik podtrzymywany');
+}
+function zlStop() {
+  if (!zl) return;
+  try { zl.n.stop(); } catch {}
+  zl.g.disconnect(); zl = null;
+  log('ZERO LATENCY: wyłączone');
+}
+function zlApply() {
+  if ($('zlOn').checked) zlStart(); else zlStop();
+  $('stZl').textContent = zl ? 'ON' : $('zlOn').checked ? 'CZEKA' : 'OFF';
+  setLed('ledZl', zl ? 'on' : $('zlOn').checked ? 'warn' : '');
+}
+$('zlOn').onchange = async () => { store.set('zlOn', $('zlOn').checked); if ($('zlOn').checked) await unlock(); zlApply(); };
+zlApply();
+
 // ---------- KLAWIATURA ----------
 const typing = (e) => ['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName) && !['checkbox', 'range', 'file'].includes(e.target.type);
 const SCREENS = { KeyQ: 'tx', KeyW: 'sfx', KeyE: 'hnt', KeyR: 'vox', KeyT: 'link', KeyY: 'sys' };
@@ -2249,8 +2282,9 @@ installUI();
   try { await listDevices(); } catch {}
   log(`SYSTEM GOTOWY · ${isIOS ? 'iOS' : canSink ? 'WYBÓR WYJŚCIA DOSTĘPNY' : 'WYJŚCIE SYSTEMOWE'}`);
   // pierwszy dotyk gdziekolwiek odblokowuje audio (wymóg Safari)
-  const first = () => { unlock(); document.removeEventListener('pointerdown', first); };
+  const first = () => { unlock(); document.removeEventListener('pointerdown', first); document.removeEventListener('keydown', first); };
   document.addEventListener('pointerdown', first);
+  document.addEventListener('keydown', first);
 })();
 </script>
 </body>
