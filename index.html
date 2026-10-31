@@ -20,6 +20,7 @@
     --safe-b: env(safe-area-inset-bottom, 0px); --safe-t: env(safe-area-inset-top, 0px);
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
   html, body { height: 100%; }
   body {
     margin: 0; background: var(--bg); color: var(--text); font: 13px/1.4 var(--mono);
@@ -269,6 +270,25 @@
   input.txt { background: #0a0f0a; color: var(--text); border: 1px solid var(--line2); padding: 8px; font: 12px var(--mono); width: 100%; border-radius: 0; }
   code { color: var(--g); font: 11px var(--mono); }
 
+  /* ---------- PORTAL + TERMINAL ---------- */
+  .seg { display: inline-flex; border: 1px solid var(--line2); margin-left: auto; }
+  .seg button { all: unset; cursor: pointer; padding: 3px 10px; font-size: 10px; letter-spacing: 1.5px; color: var(--dim); }
+  .seg button.act { background: var(--g); color: #031; }
+  .pcam iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #000; }
+  .pcam.has-frame .cam-empty { display: none; }
+  .pcam .cam-hud, .pcam .cam-bar { pointer-events: none; }
+  .pcam .cam-bar > *, .pcam .cam-hud > * { pointer-events: auto; }
+  .pcam:fullscreen .cam-hud, .pcam:fullscreen .cam-bar { opacity: .35; }
+  .pnames { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; margin-top: 10px; }
+  @media (max-width: 620px) { .pnames { grid-template-columns: 1fr; } }
+  .term { margin-top: 10px; height: 150px; overflow: auto; background: #020402; border: 1px solid var(--line2); padding: 8px 10px; font-size: 11px; line-height: 1.5;
+    color: var(--g2); white-space: pre-wrap; -webkit-user-select: text; user-select: text; }
+  .term .ok { color: var(--g); } .term .warn { color: var(--amber); } .term .err { color: var(--red); }
+  .term .cmd { color: var(--text); } .term .dim { color: var(--dim); }
+  .term-in { display: flex; gap: 8px; align-items: center; border: 1px solid var(--line2); border-top: 0; background: #020402; padding: 6px 10px; }
+  .term-in span { color: var(--g); font-size: 11px; }
+  .term-in input { all: unset; flex: 1; color: var(--g); font: 12px var(--mono); caret-color: var(--g); -webkit-user-select: text; user-select: text; }
+
   /* ---------- TELEFON: menu na dole ---------- */
   @media (max-width: 760px) {
     .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto auto; }
@@ -306,7 +326,7 @@
     <button data-s="link"><span class="k">05</span><span class="t">LINK</span><span class="s">Głośnik</span></button>
     <button data-s="sys"><span class="k">06</span><span class="t">SYS</span><span class="s">System</span></button>
     <div class="grow"></div>
-    <div class="ver">BUILD 2.3 // PL</div>
+    <div class="ver">BUILD 2.4 // PL</div>
   </nav>
 
   <main>
@@ -326,8 +346,8 @@
         </div>
 
         <div class="tile" id="camTile">
-          <div class="th"><span class="id">▣ CAM-08</span><span>Kamery eufy</span><button class="btn sm" id="camConn">⟳ Połącz</button></div>
-          <div class="cams">
+          <div class="th"><span class="id">▣ CAM-08</span><span class="seg" id="camModes"><button data-m="bridge">MOST</button><button data-m="portal">PORTAL</button></span><button class="btn sm" id="camConn">⟳ Połącz</button></div>
+          <div class="cams" id="bridgeCams">
             <div class="cam" id="cam0">
               <video playsinline autoplay muted></video><img class="snap" alt="" hidden>
               <div class="cam-empty">// BRAK SYGNAŁU //</div>
@@ -340,6 +360,27 @@
               <div class="cam-hud"><span class="cam-name">KAM-B</span><span class="cam-res"></span><span class="cam-st"><i class="led"></i><b>OFF</b></span></div>
               <div class="cam-bar"><button class="cam-mute" title="Dźwięk">🔊</button><input type="range" class="cam-vol" min="0" max="1" step="0.05" value="0.8"><button class="cam-fs" title="Pełny ekran">⛶</button></div>
             </div>
+          </div>
+          <div id="portalBox" hidden>
+            <div class="cams">
+              <div class="cam pcam" id="pcam0">
+                <div class="cam-empty">// PORTAL EUFY · KAM-A //</div>
+                <div class="cam-hud"><span class="cam-name">KAM-A</span><span class="cam-st"><i class="led"></i><b>OFF</b></span></div>
+                <div class="cam-bar"><button class="cam-mute" title="Dźwięk">🔊</button><input type="range" class="cam-vol" min="0" max="1" step="0.05" value="0.8"><button class="cam-fs" title="Pełny ekran">⛶</button></div>
+              </div>
+              <div class="cam pcam" id="pcam1">
+                <div class="cam-empty">// PORTAL EUFY · KAM-B //</div>
+                <div class="cam-hud"><span class="cam-name">KAM-B</span><span class="cam-st"><i class="led"></i><b>OFF</b></span></div>
+                <div class="cam-bar"><button class="cam-mute" title="Dźwięk">🔊</button><input type="range" class="cam-vol" min="0" max="1" step="0.05" value="0.8"><button class="cam-fs" title="Pełny ekran">⛶</button></div>
+              </div>
+            </div>
+            <div class="pnames">
+              <div class="field"><label>Kamera A — nazwa w eufy</label><input class="txt" id="pName0" spellcheck="false" placeholder="np. Salon"></div>
+              <div class="field"><label>Kamera B — nazwa w eufy</label><input class="txt" id="pName1" spellcheck="false" placeholder="np. Ogród"></div>
+              <label class="sw">Sam obraz (kiosk)<input type="checkbox" id="pKiosk" checked><i></i></label>
+            </div>
+            <div class="term" id="term"></div>
+            <div class="term-in"><span>eufy&gt;</span><input id="termIn" spellcheck="false" autocomplete="off" placeholder="help"></div>
           </div>
         </div>
 
@@ -536,6 +577,14 @@
             <li>W folderze <b>kamery/</b> wpisz adresy do <b>go2rtc.yaml</b> i uruchom <b>start.command</b>.</li>
             <li>Kliknij <b>Pobierz listę kamer</b>, wybierz A i B. Chrome zapyta o dostęp do sieci lokalnej — zezwól.</li>
           </ol>
+          <div class="th" style="margin-top:14px"><span class="id">▣ TRYB PORTAL</span><span>Kamery bez RTSP</span></div>
+          <ol class="steps">
+            <li>Pobierz rozszerzenie: <b>github.com/Antos-python/livemic</b> → Code → Download ZIP → rozpakuj (folder <b>rozszerzenie/</b>).</li>
+            <li>Chrome → <code>chrome://extensions</code> → włącz <b>Tryb dewelopera</b> → <b>Załaduj rozpakowane</b> → wskaż folder <b>rozszerzenie</b>.</li>
+            <li>TX → CAM-08 → <b>PORTAL</b>. W terminalu wpisz <code>login</code>, zaloguj się do eufy, potem <code>reload</code>.</li>
+            <li>Wpisz nazwy kamer dokładnie jak w eufy (pola A/B albo <code>a Salon</code>, <code>b Ogród</code>). <code>scan</code> wypisze znalezione nazwy.</li>
+          </ol>
+          <p class="muted" style="margin:6px 0 0">Bez rozszerzenia portal też działa — kamery klikasz wtedy ręcznie. Jeśli logowanie w okienku nie zostaje zapamiętane: Chrome → Ustawienia → Prywatność → Pliki cookie innych firm → zezwól dla antos-python.github.io.</p>
           <p class="note" style="margin:10px 0 0">Portal eufy (mysecurity.eufylife.com) nie ma publicznego API, więc obraz idzie bezpośrednio z kamer przez RTSP. Hasła zostają na Twoim komputerze. Działa na komputerze z go2rtc; iPhone nie połączy się z nim z adresu HTTPS.</p>
         </div>
 
@@ -1858,7 +1907,7 @@ function camAudio(c) {
   if (canSink && v.setSinkId && v.sinkId !== $('camSink').value) v.setSinkId($('camSink').value).catch(() => {});
 }
 function camAudioAll() { cams.forEach(camAudio); }
-function camDuck(on) { camDucked = on && $('camDuck').checked; camAudioAll(); }
+function camDuck(on) { camDucked = on && $('camDuck').checked; camAudioAll(); pcams.forEach(pAudio); }
 $('camSink').onchange = () => { store.set('camSink', $('camSink').value); camAudioAll(); };
 
 function camClose(c) {
@@ -1872,7 +1921,7 @@ function camSnapshot(c) {
   // awaryjnie: klatki JPEG co 1,5 s (bez dźwięku)
   const img = c.el.querySelector('.snap'), load = () => img.src = `${camBase()}/api/frame.jpeg?src=${encodeURIComponent(c.src)}&t=${Date.now()}`;
   img.onload = () => { img.hidden = false; c.el.classList.add('on'); camHud(c, 'KLATKI', 'warn'); };
-  img.onerror = () => { img.hidden = true; c.el.classList.remove('on'); camHud(c, 'BRAK MOSTU', 'red'); };
+  img.onerror = () => { clearInterval(c.snapT); img.hidden = true; c.el.classList.remove('on'); camHud(c, 'BRAK MOSTU', 'red'); };
   load(); c.snapT = setInterval(load, 1500);
 }
 function iceDone(pc, ms) {
@@ -1931,7 +1980,10 @@ function camStop() {
   cams.forEach(c => { camClose(c); camHud(c, 'OFF', ''); });
   $('camConn').textContent = '⟳ Połącz';
 }
-$('camConn').onclick = () => camWanted ? camStop() : camStart();
+$('camConn').onclick = () => {
+  if (camMode === 'portal') { portalOn ? portalStop() : portalStart(); $('camConn').textContent = portalOn ? '■ Rozłącz' : '⟳ Połącz'; }
+  else camWanted ? camStop() : camStart();
+};
 
 cams.forEach(c => {
   c.el.querySelector('.cam-mute').onclick = () => { c.muted = !c.muted; store.set('camMute' + c.i, c.muted); camAudio(c); };
@@ -1948,9 +2000,161 @@ document.addEventListener('keydown', () => setTimeout(camAudioAll, 0), { once: t
 
 // automatyczny start po wejściu w TX
 function camAutoStart() {
+  if (camMode === 'portal') { if (!portalOn && $('camAuto').checked) portalStart(); return; }
   if (camWanted || !$('camAuto').checked || !($('camA').value || $('camB').value)) return;
   camStart();
 }
+
+// ---------- PORTAL EUFY (osadzony) + TERMINAL ----------
+// portal w dwóch ramkach; rozszerzenie „Live MIC × eufy” w ramce wybiera kamerę po nazwie i pokazuje sam obraz
+const EUFY = 'https://mysecurity.eufylife.com';
+const pcams = [0, 1].map(i => ({ i, el: $('pcam' + i), frame: null, ext: false, login: false,
+  name: store.get('pName' + i, ''), muted: store.get('pMute' + i, false), vol: store.get('pVol' + i, 0.8) }));
+let camMode = store.get('camMode', 'bridge'), portalOn = false, pingT = 0, extWarnT = 0;
+const tagOf = (c) => 'KAM-' + 'AB'[c.i];
+
+function term(msg, cls) {
+  const d = document.createElement('div');
+  d.className = cls || ''; d.textContent = `${zulu().slice(0, 8)} ${msg}`;
+  $('term').appendChild(d);
+  while ($('term').children.length > 200) $('term').firstChild.remove();
+  $('term').scrollTop = 1e9;
+}
+function setMode(m) {
+  camMode = m; store.set('camMode', m);
+  $('bridgeCams').hidden = m !== 'bridge'; $('portalBox').hidden = m !== 'portal';
+  document.querySelectorAll('#camModes button').forEach(b => b.classList.toggle('act', b.dataset.m === m));
+  if (m === 'portal') { camStop(); if ($('camAuto').checked) portalStart(); }
+  else { portalStop(); camAutoStart(); }
+  $('camConn').textContent = (m === 'portal' ? portalOn : camWanted) ? '■ Rozłącz' : '⟳ Połącz';
+}
+$('camModes').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setMode(b.dataset.m); });
+
+const pSend = (c, msg) => c.frame?.contentWindow?.postMessage({ lm: 'cmd', ...msg }, EUFY);
+function pHud(c, txt, led) {
+  c.el.querySelector('.cam-st b').textContent = txt;
+  c.el.querySelector('.cam-st i').className = 'led' + (led ? ' ' + led : '');
+}
+function pAudio(c) {
+  c.el.querySelector('.cam-mute').textContent = c.muted ? '🔇' : '🔊';
+  c.el.querySelector('.cam-vol').value = c.vol;
+  pSend(c, { op: 'audio', muted: c.muted, volume: c.vol * (camDucked ? 0.15 : 1) });
+}
+function pSelect(c) {
+  pSend(c, { op: 'kiosk', on: $('pKiosk').checked });
+  if (c.name) { term(`${tagOf(c)}: szukam kamery „${c.name}”`); pSend(c, { op: 'select', name: c.name }); }
+  else { term(`${tagOf(c)}: brak nazwy — skanuję portal`); pSend(c, { op: 'scan' }); }
+}
+function portalStart() {
+  portalOn = true; $('camConn').textContent = '■ Rozłącz';
+  term('> łączenie z portalem eufy…');
+  pcams.forEach(c => {
+    if (c.frame) return;
+    const f = document.createElement('iframe');
+    f.src = EUFY + '/camera'; f.allow = 'autoplay; fullscreen'; f.title = tagOf(c);
+    f.onload = () => { c.ext = false; pSend(c, { op: 'ping' }); };
+    c.el.prepend(f); c.frame = f; c.el.classList.add('has-frame');
+    pHud(c, 'ŁADUJĘ', 'warn');
+  });
+  clearInterval(pingT);
+  pingT = setInterval(() => pcams.forEach(c => !c.ext && pSend(c, { op: 'ping' })), 2000);
+  clearTimeout(extWarnT);
+  extWarnT = setTimeout(() => {
+    if (portalOn && pcams.every(c => !c.ext)) {
+      term('! rozszerzenie „Live MIC × eufy” nie odpowiada — portal działa, ale kamery wybierasz ręcznie. Wpisz: help', 'warn');
+      pcams.forEach(c => pHud(c, 'RĘCZNIE', 'warn'));
+    }
+  }, 7000);
+}
+function portalStop() {
+  if (!portalOn && !pcams.some(c => c.frame)) return;
+  portalOn = false; clearInterval(pingT); clearTimeout(extWarnT);
+  pcams.forEach(c => { c.frame?.remove(); c.frame = null; c.ext = false; c.el.classList.remove('has-frame', 'on'); pHud(c, 'OFF', ''); });
+  term('> portal rozłączony');
+}
+window.addEventListener('message', (e) => {
+  if (e.origin !== EUFY || e.data?.lm !== 'evt') return;
+  const c = pcams.find(x => x.frame && x.frame.contentWindow === e.source);
+  if (!c) return;
+  const d = e.data;
+  if (d.op === 'hello') {
+    const first = !c.ext; c.ext = true; c.login = d.login;
+    if (first) term(`${tagOf(c)}: rozszerzenie połączone (${d.path})`, 'ok');
+    if (d.login) {
+      pHud(c, 'ZALOGUJ', 'warn');
+      if (c.i === 0 && first) term('! portal prosi o logowanie: wpisz „login”, zaloguj się w powiększonym oknie, potem „reload”', 'warn');
+    } else if (first) { pAudio(c); pSelect(c); }
+  } else if (d.op === 'list') {
+    term(`${tagOf(c)}: kamery w portalu → ${d.names.length ? d.names.join(' | ') : 'nic nie znaleziono (otwórz listę urządzeń i wpisz scan)'}`);
+  } else if (d.op === 'status') {
+    term(`${tagOf(c)}: ${d.msg}`, d.level);
+    if (d.state) {
+      pHud(c, d.state, d.state === 'LIVE' ? 'on' : d.level === 'err' ? 'red' : 'warn');
+      c.el.classList.toggle('on', d.state === 'LIVE');
+      if (d.state === 'LIVE') pAudio(c);
+    }
+  }
+});
+
+pcams.forEach(c => {
+  $('pName' + c.i).value = c.name;
+  $('pName' + c.i).onchange = (e) => { c.name = e.target.value.trim(); store.set('pName' + c.i, c.name); if (c.ext && !c.login) pSelect(c); };
+  c.el.querySelector('.cam-mute').onclick = () => { c.muted = !c.muted; store.set('pMute' + c.i, c.muted); pAudio(c); };
+  c.el.querySelector('.cam-vol').oninput = (e) => { c.vol = +e.target.value; store.set('pVol' + c.i, c.vol); pAudio(c); };
+  c.el.querySelector('.cam-fs').onclick = () => { (c.el.requestFullscreen || c.el.webkitRequestFullscreen)?.call(c.el); };
+  pAudio(c);
+});
+$('pKiosk').checked = store.get('pKiosk', true);
+$('pKiosk').onchange = () => { store.set('pKiosk', $('pKiosk').checked); pcams.forEach(c => pSend(c, { op: 'kiosk', on: $('pKiosk').checked })); };
+
+// terminal: polecenia
+const HELP = [
+  'help              — ta lista',
+  'start | stop      — połącz / rozłącz portal',
+  'scan              — wypisz nazwy kamer znalezione w portalu',
+  'a <nazwa>         — kamera A po nazwie (np. a Salon)',
+  'b <nazwa>         — kamera B po nazwie',
+  'kiosk on|off      — sam obraz / cały portal (do ręcznego klikania)',
+  'login             — powiększ okno A, żeby się zalogować',
+  'reload            — przeładuj portal w obu oknach',
+  'tryb most|portal  — źródło obrazu',
+  'clear             — wyczyść terminal',
+  '— bez rozszerzenia: portal działa, kamery klikasz ręcznie (kiosk off). Instalacja: LINK → LNK-E.',
+];
+function termCmd(line) {
+  const [cmd, ...rest] = line.trim().split(/\s+/), arg = rest.join(' ');
+  if (!cmd) return;
+  term('eufy> ' + line, 'cmd');
+  switch (cmd.toLowerCase()) {
+    case 'help': case '?': HELP.forEach(h => term(h, 'dim')); break;
+    case 'start': if (camMode !== 'portal') setMode('portal'); else portalStart(); break;
+    case 'stop': portalStop(); $('camConn').textContent = '⟳ Połącz'; break;
+    case 'scan':
+      if (!portalOn) { term('! najpierw: start', 'warn'); break; }
+      pcams.forEach(c => c.ext ? pSend(c, { op: 'scan' }) : term(`${tagOf(c)}: brak rozszerzenia`, 'warn')); break;
+    case 'a': case 'b': {
+      const c = pcams[cmd.toLowerCase() === 'a' ? 0 : 1];
+      if (!arg) { term(`${tagOf(c)}: obecnie „${c.name || '—'}”`); break; }
+      c.name = arg; store.set('pName' + c.i, arg); $('pName' + c.i).value = arg;
+      if (c.ext && !c.login) pSelect(c); else term(`${tagOf(c)}: zapisano „${arg}”, wybiorę po połączeniu`);
+      break;
+    }
+    case 'kiosk': $('pKiosk').checked = !/^off|0|nie$/i.test(arg); $('pKiosk').onchange(); term(`kiosk ${$('pKiosk').checked ? 'WŁ' : 'WYŁ'}`); break;
+    case 'login': if (!portalOn) portalStart(); pcams[0].el.querySelector('.cam-fs').click(); break;
+    case 'reload': pcams.forEach(c => { if (c.frame) { c.ext = false; c.frame.src = EUFY + '/camera'; pHud(c, 'ŁADUJĘ', 'warn'); } }); term('> przeładowuję portal'); break;
+    case 'tryb': setMode(/most|bridge/i.test(arg) ? 'bridge' : 'portal'); term(`tryb: ${camMode === 'portal' ? 'PORTAL' : 'MOST go2rtc'}`); break;
+    case 'clear': $('term').innerHTML = ''; break;
+    default: term(`! nieznane polecenie „${cmd}” — wpisz help`, 'warn');
+  }
+}
+$('termIn').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { termCmd(e.target.value); e.target.value = ''; }
+  e.stopPropagation();
+});
+term('LIVE-MIC // TERMINAL EUFY v1 — wpisz help', 'ok');
+
+$('bridgeCams').hidden = camMode !== 'bridge'; $('portalBox').hidden = camMode !== 'portal';
+document.querySelectorAll('#camModes button').forEach(b => b.classList.toggle('act', b.dataset.m === camMode));
 
 // ---------- KLAWIATURA ----------
 const typing = (e) => ['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName) && !['checkbox', 'range', 'file'].includes(e.target.type);

@@ -1,5 +1,5 @@
 // Offline: aplikacja z pamięci, w tle dociąga nowszą wersję
-const CACHE = 'livemic-v6';
+const CACHE = 'livemic-v7';
 const FILES = ['./', './index.html', './worklet.js', './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 
