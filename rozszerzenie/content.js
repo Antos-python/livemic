@@ -100,6 +100,14 @@
     else if (d.op === 'reload') location.reload();
   });
 
+  // zmiana stanu logowania → powiadom Live MIC
+  let lastLogin = null;
+  setInterval(() => {
+    if (!origin) return;
+    const l = isLogin();
+    if (l !== lastLogin) { lastLogin = l; send({ op: 'hello', path: location.pathname, login: l, version: 2 }); }
+  }, 1500);
+
   // nowe elementy (np. odtwarzacz po wybraniu kamery) też dostają kiosk i dźwięk
   new MutationObserver(() => {
     if (!origin || queued) return;

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Live MIC × eufy",
-  "version": "1.0",
+  "version": "1.1",
   "description": "Pozwala aplikacji Live MIC wybierać kamery po nazwie w osadzonym portalu eufy i pokazywać sam obraz.",
   "icons": { "128": "icon.png" },
   "content_scripts": [

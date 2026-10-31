@@ -271,6 +271,9 @@
   code { color: var(--g); font: 11px var(--mono); }
 
   /* ---------- PORTAL + TERMINAL ---------- */
+  .cam-idle { display: none; border: 1px dashed var(--line2); padding: 14px; text-align: center; color: var(--g2); letter-spacing: 2px; font-size: 11px; }
+  #camTile.cams-idle .cam-idle { display: block; }
+  #camTile.cams-idle .cams { display: none; }
   .seg { display: inline-flex; border: 1px solid var(--line2); margin-left: auto; }
   .seg button { all: unset; cursor: pointer; padding: 3px 10px; font-size: 10px; letter-spacing: 1.5px; color: var(--dim); }
   .seg button.act { background: var(--g); color: #031; }
@@ -326,7 +329,7 @@
     <button data-s="link"><span class="k">05</span><span class="t">LINK</span><span class="s">Głośnik</span></button>
     <button data-s="sys"><span class="k">06</span><span class="t">SYS</span><span class="s">System</span></button>
     <div class="grow"></div>
-    <div class="ver">BUILD 2.4 // PL</div>
+    <div class="ver">BUILD 2.5 // PL</div>
   </nav>
 
   <main>
@@ -347,6 +350,7 @@
 
         <div class="tile" id="camTile">
           <div class="th"><span class="id">▣ CAM-08</span><span class="seg" id="camModes"><button data-m="bridge">MOST</button><button data-m="portal">PORTAL</button></span><button class="btn sm" id="camConn">⟳ Połącz</button></div>
+          <div class="cam-idle" id="camIdle">◉ KAMERY UZBROJONE — otworzą się, gdy nadajesz (TX)</div>
           <div class="cams" id="bridgeCams">
             <div class="cam" id="cam0">
               <video playsinline autoplay muted></video><img class="snap" alt="" hidden>
@@ -570,8 +574,9 @@
             <div class="field"><label>Kamera B</label><select id="camB"></select></div>
           </div>
           <div class="field" id="camSinkBox" style="margin-top:8px"><label>Dźwięk kamer gra na</label><select id="camSink"><option value="">Domyślne systemowe</option></select></div>
-          <label class="sw" style="margin-top:6px">Auto-start po wejściu w TX<input type="checkbox" id="camAuto" checked><i></i></label>
-          <label class="sw">Ścisz kamery podczas nadawania<input type="checkbox" id="camDuck" checked><i></i></label>
+          <div class="field" style="margin-top:8px"><label>Kiedy otwierać kamery</label><select id="camWhen">
+            <option value="tx">Tylko podczas nadawania (TX)</option><option value="screen">Zawsze na ekranie TX</option><option value="manual">Ręcznie (przycisk Połącz)</option></select></div>
+          <label class="sw" style="margin-top:6px">Ścisz kamery podczas nadawania (gdy słychać echo)<input type="checkbox" id="camDuck"><i></i></label>
           <ol class="steps" style="margin-top:10px">
             <li>Aplikacja eufy → kamera → Ustawienia → <b>RTSP</b> (lub NAS/RTSP przy HomeBase) → włącz, ustaw login i hasło, zapisz adres <code>rtsp://…</code>.</li>
             <li>W folderze <b>kamery/</b> wpisz adresy do <b>go2rtc.yaml</b> i uruchom <b>start.command</b>.</li>
@@ -1051,6 +1056,7 @@ function setLive(on) {
   $('stTx').textContent = on ? 'LIVE' : 'STBY'; setLed('ledTx', on ? 'red' : '');
   rxRecord(on);
   camDuck(on);
+  camOnTx(on);
 }
 async function pttDown() {
   if (!micStream) { try { await startMic(); } catch (e) { log('BRAK DOSTĘPU DO MIKROFONU: ' + e.message); } return; }
@@ -1858,10 +1864,8 @@ const cams = [0, 1].map(i => ({ i, el: $('cam' + i), pc: null, src: '', snapT: 0
 let camWanted = false, camDucked = false;
 const camBase = () => ($('camUrl').value.trim() || 'http://localhost:1984').replace(/\/+$/, '');
 $('camUrl').value = store.get('camUrl', 'http://localhost:1984');
-$('camAuto').checked = store.get('camAuto', true);
-$('camDuck').checked = store.get('camDuck', true);
+$('camDuck').checked = store.get('camDuck', false);
 $('camUrl').onchange = () => store.set('camUrl', $('camUrl').value.trim());
-$('camAuto').onchange = () => store.set('camAuto', $('camAuto').checked);
 $('camDuck').onchange = () => { store.set('camDuck', $('camDuck').checked); camAudioAll(); };
 if (!canSink) $('camSinkBox').hidden = true;
 
@@ -2000,9 +2004,8 @@ document.addEventListener('keydown', () => setTimeout(camAudioAll, 0), { once: t
 
 // automatyczny start po wejściu w TX
 function camAutoStart() {
-  if (camMode === 'portal') { if (!portalOn && $('camAuto').checked) portalStart(); return; }
-  if (camWanted || !$('camAuto').checked || !($('camA').value || $('camB').value)) return;
-  camStart();
+  if (camWhen() === 'screen') camOpen();
+  else if (camWhen() === 'tx' && camMode === 'portal' && !portalOn) portalStart();   // rozgrzewka w tle
 }
 
 // ---------- PORTAL EUFY (osadzony) + TERMINAL ----------
@@ -2024,8 +2027,8 @@ function setMode(m) {
   camMode = m; store.set('camMode', m);
   $('bridgeCams').hidden = m !== 'bridge'; $('portalBox').hidden = m !== 'portal';
   document.querySelectorAll('#camModes button').forEach(b => b.classList.toggle('act', b.dataset.m === m));
-  if (m === 'portal') { camStop(); if ($('camAuto').checked) portalStart(); }
-  else { portalStop(); camAutoStart(); }
+  if (m === 'portal') camStop(); else portalStop();
+  camApplyWhen();
   $('camConn').textContent = (m === 'portal' ? portalOn : camWanted) ? '■ Rozłącz' : '⟳ Połącz';
 }
 $('camModes').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setMode(b.dataset.m); });
@@ -2078,12 +2081,23 @@ window.addEventListener('message', (e) => {
   if (!c) return;
   const d = e.data;
   if (d.op === 'hello') {
-    const first = !c.ext; c.ext = true; c.login = d.login;
-    if (first) term(`${tagOf(c)}: rozszerzenie połączone (${d.path})`, 'ok');
+    const first = !c.ext, wasLogin = c.login;
+    c.ext = true; c.login = d.login;
+    if (first && !c.seen) { c.seen = true; term(`${tagOf(c)}: rozszerzenie połączone (${d.path})`, 'ok'); }
     if (d.login) {
       pHud(c, 'ZALOGUJ', 'warn');
-      if (c.i === 0 && first) term('! portal prosi o logowanie: wpisz „login”, zaloguj się w powiększonym oknie, potem „reload”', 'warn');
-    } else if (first) { pAudio(c); pSelect(c); }
+      if (!wasLogin) term(`! ${tagOf(c)}: portal prosi o logowanie (tylko raz): wpisz „login” i zaloguj się w powiększonym oknie`, 'warn');
+    } else if (first || wasLogin) {
+      if (wasLogin) {
+        term(`${tagOf(c)}: zalogowano ✓ — sesja zapamiętana`, 'ok');
+        if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+        pcams.forEach(o => { if (o !== c && o.frame && o.login) { o.ext = false; o.frame.src = EUFY + '/camera'; term(`${tagOf(o)}: odświeżam z tą samą sesją`); } });
+        if (camWhen() === 'tx' && !live) camShow(false);
+      }
+      pAudio(c);
+      if (camWhen() !== 'tx' || live) pSelect(c);
+      else { pHud(c, 'GOTOWA', 'on'); term(`${tagOf(c)}: gotowa — otworzy się przy nadawaniu`); }
+    }
   } else if (d.op === 'list') {
     term(`${tagOf(c)}: kamery w portalu → ${d.names.length ? d.names.join(' | ') : 'nic nie znaleziono (otwórz listę urządzeń i wpisz scan)'}`);
   } else if (d.op === 'status') {
@@ -2117,6 +2131,7 @@ const HELP = [
   'kiosk on|off      — sam obraz / cały portal (do ręcznego klikania)',
   'login             — powiększ okno A, żeby się zalogować',
   'reload            — przeładuj portal w obu oknach',
+  'pokaz | ukryj     — ręcznie otwórz / zamknij kamery',
   'tryb most|portal  — źródło obrazu',
   'clear             — wyczyść terminal',
   '— bez rozszerzenia: portal działa, kamery klikasz ręcznie (kiosk off). Instalacja: LINK → LNK-E.',
@@ -2140,10 +2155,12 @@ function termCmd(line) {
       break;
     }
     case 'kiosk': $('pKiosk').checked = !/^off|0|nie$/i.test(arg); $('pKiosk').onchange(); term(`kiosk ${$('pKiosk').checked ? 'WŁ' : 'WYŁ'}`); break;
-    case 'login': if (!portalOn) portalStart(); pcams[0].el.querySelector('.cam-fs').click(); break;
+    case 'login': if (!portalOn) portalStart(); camShow(true); pcams[0].el.querySelector('.cam-fs').click(); break;
     case 'reload': pcams.forEach(c => { if (c.frame) { c.ext = false; c.frame.src = EUFY + '/camera'; pHud(c, 'ŁADUJĘ', 'warn'); } }); term('> przeładowuję portal'); break;
     case 'tryb': setMode(/most|bridge/i.test(arg) ? 'bridge' : 'portal'); term(`tryb: ${camMode === 'portal' ? 'PORTAL' : 'MOST go2rtc'}`); break;
     case 'clear': $('term').innerHTML = ''; break;
+    case 'pokaz': case 'pokaż': camOpen(); break;
+    case 'ukryj': camCloseAll(); break;
     default: term(`! nieznane polecenie „${cmd}” — wpisz help`, 'warn');
   }
 }
@@ -2153,6 +2170,40 @@ $('termIn').addEventListener('keydown', (e) => {
 });
 term('LIVE-MIC // TERMINAL EUFY v1 — wpisz help', 'ok');
 
+// ---------- KAMERY: kiedy otwierać ----------
+$('camWhen').value = store.get('camWhen', 'tx');
+const camWhen = () => $('camWhen').value;
+let camHangT = 0;
+function camShow(on) { $('camTile').classList.toggle('cams-idle', !on); }
+function camOpen() {
+  camShow(true);
+  if (camMode === 'portal') {
+    if (!portalOn) { portalStart(); return; }        // wybór nastąpi po „hello”
+    pcams.forEach(c => { if (c.ext && !c.login) { pAudio(c); pSelect(c); } });
+  } else if (!camWanted) camStart();
+}
+function camCloseAll() {
+  clearTimeout(camHangT);
+  if (camMode === 'portal') {
+    // przeładowanie zatrzymuje strumień, sesja zostaje
+    pcams.forEach(c => { if (c.frame) { c.ext = false; c.el.classList.remove('on'); c.frame.src = EUFY + '/camera'; pHud(c, 'GOTOWA', ''); } });
+  } else camStop();
+  camShow(camWhen() !== 'tx');
+}
+function camOnTx(on) {
+  if (camWhen() !== 'tx') return;
+  clearTimeout(camHangT);
+  if (on) { camOpen(); log('KAMERY: otwarte (TX)'); }
+  else camHangT = setTimeout(() => { if (!live) { camCloseAll(); log('KAMERY: zamknięte'); } }, 4000);
+}
+function camApplyWhen() {
+  const w = camWhen();
+  if (w === 'tx') { if (!live) { if (camMode === 'bridge') camStop(); camShow(false); } if (camMode === 'portal' && !portalOn) portalStart(); }
+  else if (w === 'screen') camOpen();
+  else camShow(true);
+}
+$('camWhen').onchange = () => { store.set('camWhen', camWhen()); camApplyWhen(); };
+camShow(camWhen() !== 'tx');
 $('bridgeCams').hidden = camMode !== 'bridge'; $('portalBox').hidden = camMode !== 'portal';
 document.querySelectorAll('#camModes button').forEach(b => b.classList.toggle('act', b.dataset.m === camMode));
 
